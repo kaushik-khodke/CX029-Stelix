@@ -1,0 +1,2 @@
+{'id': 'affe96d5-6b36-4e25-a70b-ccea4bca6540', 'priority_level': 'RED', 'arrival_time': '2026-03-10T10:48:24.865082+00:00', 'status': 'in_treatment', 'vitals': {'bp': '70', 'hr': '70', 'spo2': '80', 'temp': '103'}}
+{'id': 'd6209ca6-0256-48bd-87e6-75c04c4a7b6f', 'priority_level': 'BLUE', 'arrival_time': '2026-03-10T10:17:49.455342+00:00', 'status': 'in_treatment', 'vitals': {'bp': '130', 'hr': '80', 'spo2': '100', 'temp': '50'}}

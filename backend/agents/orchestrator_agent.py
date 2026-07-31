@@ -1,0 +1,290 @@
+"""
+orchestrator_agent.py
+The brain: receives the user message, uses Gemini function-calling to decide
+which specialist agents to call (and in what order), then synthesises a final reply.
+
+User isolation is enforced by passing user_id in every sub-agent context.
+"""
+import os
+import json
+import asyncio
+from typing import Any, Dict, List, Optional
+from google import genai
+from google.genai import types
+
+from agents.base_agent import AgentResult
+from agents.pharmacy_agent import PharmacyAgent
+from agents.refill_agent import RefillAgent
+from agents.notification_agent import NotificationAgent
+from agents.health_agent import HealthAgent
+from agents.prescription_agent import PrescriptionAgent
+from agents.safety_agent import SafetyAgent
+from agents.doctor_agent import DoctorAgent
+
+
+# ── Tool declarations for Gemini ────────────────────────────────────────────
+TOOLS = [
+    types.Tool(
+        function_declarations=[
+            types.FunctionDeclaration(
+                name="call_pharmacy_agent",
+                description=(
+                    "Search medicines, verify prescriptions, place orders, or check current medications. "
+                    "Use action='search' to look up a medicine. "
+                    "Use action='get_my_medicines' to see the patient's currently prescribed medications and dosages. "
+                    "Use action='order' to purchase/refill a single medicine. "
+                    "Use action='order_from_prescription' to bulk order from an uploaded record."
+                ),
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "action": types.Schema(type="STRING", enum=["search", "order", "order_from_prescription", "get_my_medicines"], description="search, order, order_from_prescription, or get_my_medicines"),
+                        "query":  types.Schema(type="STRING", description="Medicine name or search query"),
+                        "qty":    types.Schema(type="INTEGER", description="Number of units to order"),
+                    },
+                    required=["action"],
+                ),
+            ),
+            types.FunctionDeclaration(
+                name="call_refill_agent",
+                description=(
+                    "Check which of the patient's medicines are running out soon. "
+                ),
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "days_ahead": types.Schema(type="INTEGER", description="Days window to check"),
+                    },
+                ),
+            ),
+            types.FunctionDeclaration(
+                name="call_notification_agent",
+                description="Log a notification (order confirmation, refill alert) for the patient.",
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "type":    types.Schema(type="STRING", description="e.g. order_confirmation, refill_alert"),
+                        "channel": types.Schema(type="STRING", description="app, email, sms"),
+                        "payload": types.Schema(type="OBJECT", description="Notification details"),
+                    },
+                    required=["type"],
+                ),
+            ),
+            types.FunctionDeclaration(
+                name="call_health_agent",
+                description="Search medical records, run health analysis, or check daily routines (steps, hydration, sleep).",
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "action": types.Schema(type="STRING", enum=["search", "analyze", "get_routines"], description="search, analyze, or get_routines"),
+                        "query":  types.Schema(type="STRING", description="Search query"),
+                    },
+                    required=["action"],
+                ),
+            ),
+            types.FunctionDeclaration(
+                name="call_prescription_agent",
+                description="Verify if a patient has a valid prescription for a medicine.",
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "medicine_name": types.Schema(type="STRING", description="Medicine to verify"),
+                    },
+                    required=["medicine_name"],
+                ),
+            ),
+            types.FunctionDeclaration(
+                name="call_doctor_agent",
+                description=(
+                    "Handle doctor workflows: manage ward assignments, accept/reject shifts, "
+                    "or check the doctor's current pending assignments. "
+                    "You can update status using the ward name (e.g. 'Emergency') if you don't have the ID. "
+                    "Use action='get_assignments' to see pending duties. "
+                    "Use action='update_status' to confirm (status='accepted') or decline (status='rejected') an assignment."
+                ),
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={
+                        "action": types.Schema(type="STRING", enum=["get_assignments", "update_status"], description="get_assignments or update_status"),
+                        "assignment_id": types.Schema(type="STRING", description="UUID of the assignment (optional if ward provided)"),
+                        "ward": types.Schema(type="STRING", description="Name of the ward (optional if assignment_id provided)"),
+                        "status": types.Schema(type="STRING", enum=["accepted", "rejected"], description="accepted or rejected"),
+                    },
+                    required=["action"],
+                ),
+            ),
+        ]
+    )
+]
+
+
+SYSTEM_PROMPT = """
+You are the **MyHealthChain Master AI Agent** — a senior healthcare assistant that coordinates specialist sub-agents.
+You serve both **Patients** and **Doctors**.
+
+ROLE AWARENESS:
+1. If User role is **patient**: Focus on their health records, routines, and medications.
+2. If User role is **doctor**: Assist with hospital duties, ward assignments, and patient management.
+
+TOOLS AVAILABLE:
+• call_pharmacy_agent  — search/order medicines OR check active prescriptions
+• call_prescription_agent — verify prescriptions
+• call_refill_agent    — detect which medicines are running low
+• call_notification_agent — log confirmations
+• call_health_agent    — search records, analyze risk, or check daily routines
+• call_doctor_agent    — manage ward assignments or check duties (ONLY for doctors)
+
+RULES:
+1. **Context Alignment**: If a doctor asks about their duties, use `call_doctor_agent`. If a patient asks about their health, use `call_health_agent`.
+2. **Chain of Thought**: Express your reasoning before calling tools.
+3. **Persona**: Be professional, clinical, and helpful. Use emojis.
+"""
+
+
+
+class OrchestratorAgent:
+    MAX_HISTORY_TURNS = 10
+
+    def __init__(self):
+        self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        self.pharmacy     = PharmacyAgent()
+        self.refill       = RefillAgent()
+        self.notification = NotificationAgent()
+        self.health       = HealthAgent()
+        self.prescription = PrescriptionAgent()
+        self.safety       = SafetyAgent()
+        self.doctor       = DoctorAgent()
+        self._sessions: Dict[str, List[Dict]] = {}
+
+    def _get_history(self, user_id: str) -> List[Dict]:
+        return self._sessions.get(user_id, [])
+
+    def _append_history(self, user_id: str, role: str, content: str) -> None:
+        if user_id not in self._sessions:
+            self._sessions[user_id] = []
+        self._sessions[user_id].append({"role": role, "content": content})
+        max_msgs = self.MAX_HISTORY_TURNS * 2
+        if len(self._sessions[user_id]) > max_msgs:
+            self._sessions[user_id] = self._sessions[user_id][-max_msgs:]
+
+    async def _dispatch(self, tool_name: str, args: Dict, user_id: str) -> AgentResult:
+        base_ctx = {"user_id": user_id}
+        if tool_name == "call_pharmacy_agent":
+            ctx = {**base_ctx, **args}
+            return await self.pharmacy.run(args.get("query", ""), ctx)
+        if tool_name == "call_refill_agent":
+            ctx = {**base_ctx, "days_ahead": args.get("days_ahead", 7)}
+            return await self.refill.run("check_refills", ctx)
+        if tool_name == "call_notification_agent":
+            ctx = {**base_ctx, **args}
+            return await self.notification.run("log", ctx)
+        if tool_name == "call_health_agent":
+            ctx = {**base_ctx, **args}
+            return await self.health.run(args.get("query", ""), ctx)
+        if tool_name == "call_prescription_agent":
+            ctx = {**base_ctx, **args}
+            return await self.prescription.run(args.get("medicine_name", ""), ctx)
+        if tool_name == "call_doctor_agent":
+            ctx = {**base_ctx, **args}
+            return await self.doctor.run(args.get("action", ""), ctx)
+        return AgentResult(success=False, message=f"Unknown tool: {tool_name}", agent_name="orchestrator")
+
+    async def run(self, message: str, user_id: str, language: str = "en", role: str = "patient") -> Dict[str, Any]:
+        print(f"DEBUG: Orchestrator.run - Role: {role}, User: {user_id}, Msg: {message}")
+        safety_check = await self.safety.run(message)
+        if not safety_check.success:
+            return {"success": False, "response": safety_check.message, "agents_used": ["safety_agent"], "steps": []}
+
+        # Format message content including history
+        history = self._get_history(user_id)
+        chat_contents = []
+        for h in history:
+            chat_contents.append(types.Content(role=h["role"], parts=[types.Part.from_text(text=h["content"])]))
+        
+        user_prompt = f"User role: {role}\nUser ID: {user_id}\nLanguage: {language}\nUser message: {message}"
+        chat_contents.append(types.Content(role="user", parts=[types.Part.from_text(text=user_prompt)]))
+
+        agents_used = []
+        steps = []
+        
+        try:
+            # First move: Model might call tools or give thoughts
+            response = await asyncio.to_thread(
+                self.client.models.generate_content,
+                model="gemini-2.5-flash",
+                contents=chat_contents,
+                config=types.GenerateContentConfig(
+                    tools=TOOLS,
+                    system_instruction=SYSTEM_PROMPT
+                )
+            )
+
+            for _ in range(6): # max tool iterations
+                if not response.candidates or not response.candidates[0].content.parts:
+                    break
+                
+                parts = response.candidates[0].content.parts
+                chat_contents.append(response.candidates[0].content) # Add model's turn to conversation
+                
+                tool_calls = [p.function_call for p in parts if p.function_call]
+                
+                # Log thoughts
+                for p in parts:
+                    if p.text:
+                        print(f"💭 {p.text.strip()}")
+                        steps.append({"agent": "thought", "message": p.text.strip(), "success": True})
+
+                if not tool_calls:
+                    break
+
+                tool_responses = []
+                for fc in tool_calls:
+                    print(f"🤖 Orchestrator → {fc.name}({fc.args})")
+                    result = await self._dispatch(fc.name, fc.args, user_id)
+                    agents_used.append(result.agent_name)
+                    steps.append({"agent": result.agent_name, "message": result.message, "success": result.success})
+                    
+                    tool_responses.append(
+                        types.Part.from_function_response(
+                            name=fc.name,
+                            response={"result": result.message, "data": result.data}
+                        )
+                    )
+                
+                # Send tool responses back to model
+                chat_contents.append(types.Content(role="tool", parts=tool_responses))
+                response = await asyncio.to_thread(
+                    self.client.models.generate_content,
+                    model="gemini-2.5-flash",
+                    contents=chat_contents,
+                    config=types.GenerateContentConfig(
+                        tools=TOOLS,
+                        system_instruction=SYSTEM_PROMPT
+                    )
+                )
+
+            final_text = response.text or "I couldn't process that request."
+            self._append_history(user_id, "user", message)
+            self._append_history(user_id, "model", final_text)
+
+            return {
+                "success": True,
+                "response": final_text,
+                "agents_used": list(set(agents_used)),
+                "steps": steps,
+            }
+
+        except Exception as e:
+            print(f"❌ Orchestrator Error: {e}")
+            import traceback; traceback.print_exc()
+            error_str = str(e)
+            # Provide user-friendly messages for common errors
+            if "API_KEY_INVALID" in error_str or "invalid_api_key" in error_str.lower() or "401" in error_str:
+                user_msg = "⚠️ AI service is misconfigured (invalid API key). Please contact support."
+            elif "429" in error_str or "RESOURCE_EXHAUSTED" in error_str or "quota" in error_str.lower():
+                user_msg = "⏳ AI service is busy. Please wait a moment and try again."
+            elif "UNAVAILABLE" in error_str or "503" in error_str or "ConnectionError" in error_str:
+                user_msg = "🔌 AI service is temporarily unavailable. Please try again shortly."
+            else:
+                user_msg = f"⚠️ Something went wrong: {error_str[:200]}"
+            return {"success": False, "response": user_msg, "agents_used": [], "steps": [], "error": error_str}

@@ -1,0 +1,51 @@
+# 🏥 MyHealthChain: Agentic System Specification
+
+This document serves as a master prompt to duplicate the AI-powered healthcare orchestration system.
+
+## 1. System Architecture
+- **Orchestrator (The Brain)**: A master agent that receives user intent, performs Chain-of-Thought reasoning, and dispatches tasks to specialized sub-agents via Function Calling.
+- **Specialists (The Tools)**: Domain-specific agents (Health, Pharmacy, Prescription, Refill, Notification) that interact with the database and external services.
+- **RAG Layer**: Vector search over patient medical records using `text-embedding-004`.
+- **ML Layer**: Risk analysis using a Random Forest classifier trained on clinical vitals (BP, Sugar, HR).
+- **Communication Layer**: Outbound calls and multilingual voice interaction (ElevenLabs).
+
+## 2. Core Agent Instructions & Prompts
+
+### A. Orchestrator Agent
+**System Prompt:**
+> You are the MyHealthChain Master AI Agent. Coordinate specialist sub-agents. 
+> 1. Always enforce user isolation using `user_id`.
+> 2. Perform Chain-of-Thought: Explain your reasoning before calling tools.
+> 3. Chain agents: e.g., Verify Prescription -> Order Medicine -> Notify User.
+> 4. Synthesize a single, friendly, multilingual response with emojis.
+
+**Tools (Function Declarations):**
+- `call_pharmacy_agent(action, query, qty)`
+- `call_health_agent(action, query)`
+- `call_prescription_agent(medicine_name)`
+- `call_refill_agent(days_ahead)`
+
+### B. Pharmacy & Prescription Agent
+**Logic:**
+- Search medicine inventory in Supabase.
+- Use Vision AI (Gemini) to parse uploaded prescription images/PDFs.
+- Extract medicine names, dosages, and frequencies into structured JSON.
+- Automatically verify if a medicine requires a prescription before ordering.
+
+### C. Health & ML Agent
+**Logic:**
+- `analyze_risk`: Combine all patient records into a text corpus.
+- Regex extraction of vitals: `Systolic/Diastolic BP`, `Sugar (mg/dl)`, `Heart Rate (bpm)`.
+- RandomForest Prediction: Classify health status as `Healthy`, `Warning`, or `Critical`.
+
+## 3. Data Schema (Supabase)
+- `patients`: `id (uuid)`, `user_id (uuid)`, `full_name`, `phone`.
+- `records`: `id`, `patient_id`, `record_type (prescription/report)`, `extracted_text`, `ipfs_hash`.
+- `document_chunks`: `id`, `record_id`, `content`, `embedding (vector 768)`.
+- `medicines`: `id`, `name`, `stock`, `price`, `prescription_required (bool)`.
+- `orders`: `id`, `patient_id`, `status (pending/fulfilled)`, `total_items`.
+
+## 4. Key Implementation Patterns
+- **User Isolation**: Every database query is strictly scoped by `patient_id` resolved from the auth `user_id`.
+- **Tool Iteration**: The Orchestrator allows up to 6 tool iterations to solve complex multi-step health queries.
+- **Prescription Check-Loop**: If a user orders a restricted medicine, the system pauses, triggers the Prescription Agent to search records, and only proceeds if a valid match is found in the RAG store.

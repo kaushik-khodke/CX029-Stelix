@@ -1,0 +1,10 @@
+{
+  "name": "k-health-care-system",
+  "version": "1.0.0",
+  "description": "K Health Care System Root Entry",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "whatsapp": "node index.js"
+  }
+}

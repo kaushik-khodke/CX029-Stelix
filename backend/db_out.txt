@@ -1,0 +1,14 @@
+Patients:
+{'id': '4720f774-69e0-4485-9b88-6f14cf8c287f', 'user_id': '0c15d9e8-479c-42db-9c27-16c6d5b284a2', 'full_name': 'Kaushik '}
+{'id': '5a728ca8-b72c-4928-a5af-c48f7f4dbfcb', 'user_id': '5a728ca8-b72c-4928-a5af-c48f7f4dbfcb', 'full_name': 'Om'}
+{'id': '05b2543c-6be9-48a4-a42b-825da50f6251', 'user_id': '05b2543c-6be9-48a4-a42b-825da50f6251', 'full_name': 'mike'}
+{'id': 'e80333d2-4d4a-47b2-949f-996969401124', 'user_id': 'e80333d2-4d4a-47b2-949f-996969401124', 'full_name': 'Pratik'}
+{'id': '7db87518-9bb2-4c49-a509-91f42fec2507', 'user_id': '7db87518-9bb2-4c49-a509-91f42fec2507', 'full_name': 'Pratik Wath'}
+{'id': '0e533dc1-ac2a-42b7-a68b-7c3db1d14600', 'user_id': '0e533dc1-ac2a-42b7-a68b-7c3db1d14600', 'full_name': 'Arya'}
+
+Triage:
+{'patient_id': '5a728ca8-b72c-4928-a5af-c48f7f4dbfcb', 'patient_name': 'Om', 'priority_level': 'RED'}
+{'patient_id': '4720f774-69e0-4485-9b88-6f14cf8c287f', 'patient_name': 'Kaushik ', 'priority_level': 'BLUE'}
+{'patient_id': None, 'patient_name': 'Kaushik ', 'priority_level': 'ORANGE'}
+{'patient_id': 'e80333d2-4d4a-47b2-949f-996969401124', 'patient_name': 'Pratik', 'priority_level': 'RED'}
+{'patient_id': '4720f774-69e0-4485-9b88-6f14cf8c287f', 'patient_name': 'Kaushik ', 'priority_level': 'RED'}
