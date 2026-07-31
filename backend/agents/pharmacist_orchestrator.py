@@ -112,11 +112,12 @@ RULES:
 5. **Internal Reasoning (Chain of Thought)**: You MUST think step-by-step.
 """
 
+from ai_config import get_ai_client, MODEL_TOOL_AGENT, MODEL_TOOL_AGENT_FALLBACK
+
 class PharmacistOrchestratorAgent:
     MAX_HISTORY_TURNS = 10
 
     def __init__(self):
-        self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         url = os.getenv("VITE_SUPABASE_URL")
         key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         self.db: Client = create_client(url, key)
@@ -124,6 +125,10 @@ class PharmacistOrchestratorAgent:
         self.refill = RefillAgent()
         self.health = HealthAgent()
         self._sessions: Dict[str, List[Dict]] = {}
+    
+    @property
+    def client(self) -> genai.Client:
+        return get_ai_client()
     
     def _fetch_table_data(self, table_name: str, select_columns: str = "*") -> AgentResult:
         allowed_tables = [
@@ -181,11 +186,11 @@ class PharmacistOrchestratorAgent:
 
     async def run(self, message: str, language: str = "en") -> Dict[str, Any]:
         session_id = "pharmacist_global_session"
-        history = self._get_history(session_id)
+        history = self._get_history(session_id)[-6:]
         
-        chat_contents = []
+        history_contents = []
         for h in history:
-            chat_contents.append(types.Content(role=h["role"], parts=[types.Part.from_text(text=h["content"])]))
+            history_contents.append(types.Content(role=h["role"], parts=[types.Part.from_text(text=h["content"])]))
         
         # Simple stats for prompt injection
         inventory_res = await asyncio.to_thread(self.db.table("medicines").select("name, stock").execute)
@@ -193,28 +198,38 @@ class PharmacistOrchestratorAgent:
         
         system_injection = f"Total Inventory Items: {len(inventory_res.data or [])}\nTotal Pending Orders: {len(pending_orders_res.data or [])}"
         user_prompt = f"{system_injection}\nLanguage: {language}\nPharmacist: {message}"
-        chat_contents.append(types.Content(role="user", parts=[types.Part.from_text(text=user_prompt)]))
 
         agents_used = ["pharmacist_orchestrator"]
         steps = []
         
         try:
-            response = await asyncio.to_thread(
-                self.client.models.generate_content,
-                model="gemini-2.5-flash",
-                contents=chat_contents,
+            chat = self.client.chats.create(
+                model=MODEL_TOOL_AGENT,
                 config=types.GenerateContentConfig(
                     tools=TOOLS,
                     system_instruction=SYSTEM_PROMPT
-                )
+                ),
+                history=history_contents
             )
 
+            # Send initial message with retry for 429 rate limits
+            response = None
+            for attempt in range(3):
+                try:
+                    response = await asyncio.to_thread(chat.send_message, user_prompt)
+                    break
+                except Exception as e:
+                    if ("429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)) and attempt < 2:
+                        print(f"⏳ Pharmacist Rate limit hit, retrying in 2 seconds (attempt {attempt+1})...")
+                        await asyncio.sleep(2)
+                    else:
+                        raise e
+
             for _ in range(6):
-                if not response.candidates or not response.candidates[0].content.parts:
+                if not response or not response.candidates or not response.candidates[0].content.parts:
                     break
                 
                 parts = response.candidates[0].content.parts
-                chat_contents.append(response.candidates[0].content)
                 
                 tool_calls = [p.function_call for p in parts if p.function_call]
                 for p in parts:
@@ -238,16 +253,17 @@ class PharmacistOrchestratorAgent:
                         )
                     )
                 
-                chat_contents.append(types.Content(role="tool", parts=tool_responses))
-                response = await asyncio.to_thread(
-                    self.client.models.generate_content,
-                    model="gemini-2.5-flash",
-                    contents=chat_contents,
-                    config=types.GenerateContentConfig(
-                        tools=TOOLS,
-                        system_instruction=SYSTEM_PROMPT
-                    )
-                )
+                tool_content = types.Content(role="tool", parts=tool_responses)
+                for attempt in range(3):
+                    try:
+                        response = await asyncio.to_thread(chat.send_message, tool_content)
+                        break
+                    except Exception as e:
+                        if ("429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)) and attempt < 2:
+                            print(f"⏳ Pharmacist Tool turn rate limit hit, retrying in 2 seconds (attempt {attempt+1})...")
+                            await asyncio.sleep(2)
+                        else:
+                            raise e
 
             final_text = response.text or "I wasn't able to complete that request."
             self._append_history(session_id, "user", message)

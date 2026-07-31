@@ -607,15 +607,14 @@ Respond in this structured JSON format:
     """
 
     try:
-        from google import genai
-        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         from google.genai import types
+        from ai_config import safe_generate_content
         
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
+        response = asyncio.run(safe_generate_content(
             contents=[system_prompt, user_prompt],
+            task_type="text_fast",
             config=types.GenerateContentConfig(response_mime_type="application/json")
-        )
+        ))
         
         parsed = json.loads(response.text.strip())
         

@@ -9,6 +9,8 @@ import asyncio
 from typing import List, Optional
 from langfuse.decorators import observe
 
+from ai_config import safe_generate_content, get_ai_client
+
 class RAGService:
     """
     Service for handling Retrieval Augmented Generation (RAG)
@@ -17,7 +19,10 @@ class RAGService:
     
     def __init__(self, supabase_url: str, supabase_key: str):
         self.supabase: Client = create_client(supabase_url, supabase_key)
-        self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    
+    @property
+    def client(self) -> genai.Client:
+        return get_ai_client()
     
     @observe()
     async def search_records(
@@ -94,13 +99,13 @@ class RAGService:
                     mime_type = 'image/jpeg'
                 
                 try:
-                    vision_response = await asyncio.to_thread(
-                        self.client.models.generate_content,
-                        model="gemini-2.5-flash",
+                    vision_response = await safe_generate_content(
                         contents=[
                             "Extract all the text from this document. If there is handwriting, transcribe it accurately. If there are tables or forms, structure them clearly as text. Return ONLY the extracted text. If no text is found, return an empty string.",
                             types.Part.from_bytes(data=response.content, mime_type=mime_type)
-                        ]
+                        ],
+                        task_type="text_fast",
+                        client=self.client
                     )
                     full_text = vision_response.text
                     print(f"✅ Extracted {len(full_text)} characters from document")
