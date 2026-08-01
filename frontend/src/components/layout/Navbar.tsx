@@ -90,9 +90,6 @@ export function Navbar() {
   const pathname = location.pathname;
   const { toggleSidebar, isMobile } = useSidebar();
   const [cmdOpen, setCmdOpen] = useState(false);
-
-  if (pathname === '/login' || pathname === '/signup' || pathname === '/') return null;
-
   // Derived Values
   const profileAny = profile as any;
   const displayName = profileAny?.firstName || profileAny?.first_name 
@@ -111,6 +108,8 @@ export function Navbar() {
     const s = (displayName || "U").trim();
     return s.slice(0, 2).toUpperCase();
   }, [displayName]);
+
+  if (pathname === '/login' || pathname === '/signup' || pathname === '/') return null;
 
   // Links definitions
   const patientLinks: NavLinkItem[] = [
