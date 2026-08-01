@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { supabase } from "@/lib/supabase";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
-import { LogIn, Mail, Lock, ArrowRight, Shield, Zap, Loader2 } from "lucide-react";
+import { LogIn, Mail, Lock, ArrowRight, Shield, Zap, Loader2, ArrowLeft } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email"),
@@ -70,6 +70,15 @@ export function Login() {
 
   return (
     <div className="min-h-screen relative overflow-hidden flex bg-slate-50 selection:bg-cyan-400/30">
+      {/* Back Button */}
+      <button
+        onClick={() => navigate("/")}
+        className="absolute top-6 left-6 md:top-8 md:left-8 z-50 flex items-center gap-2 text-slate-700 bg-white/20 hover:bg-white/40 backdrop-blur-md border border-white/30 px-4 py-2 rounded-full shadow-sm transition-all duration-300 font-medium text-sm"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Back
+      </button>
+
       {/* SEAMLESS BACKGROUND VIDEO FOR ENTIRE PAGE */}
       <video
         autoPlay

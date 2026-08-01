@@ -125,6 +125,7 @@ function DashboardRouter() {
 }
 
 import { AlertProvider } from "@/providers/AlertProvider";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { GlobalAlertContainer } from "@/components/layout/GlobalAlertContainer";
 import { MedicineReminder } from "@/components/features/MedicineReminder";
 
@@ -133,11 +134,12 @@ function MainLayout() {
   const isLanding = location.pathname === '/';
 
   return (
-    <div className="min-h-screen text-foreground">
+    <SidebarProvider>
       {!isLanding && <Navbar />}
-      <GlobalAlertContainer />
-      <MedicineReminder />
-      <main className={isLanding ? "min-h-screen relative" : "pt-16 min-h-screen relative"}>
+      <div className="flex flex-col flex-1 min-w-0 w-full min-h-screen text-foreground">
+        <GlobalAlertContainer />
+        <MedicineReminder />
+        <main className="flex-1 w-full relative">
         <Routes>
           {/* Public routes */}
           <Route
@@ -321,7 +323,8 @@ function MainLayout() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
-    </div>
+      </div>
+    </SidebarProvider>
   );
 }
 
