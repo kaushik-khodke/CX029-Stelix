@@ -27,9 +27,6 @@ import {
   Stethoscope,
   Bot,
   Globe,
-  Languages,
-  Sparkles,
-  CheckCircle2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -94,7 +91,19 @@ export function Navbar() {
   const pathname = location.pathname;
   const { toggleSidebar, isMobile } = useSidebar();
   const [cmdOpen, setCmdOpen] = useState(false);
-  const [translateModalOpen, setTranslateModalOpen] = useState(false);
+  const [activeLang, setActiveLang] = useState<string>('en');
+
+  // Detect current translation language on mount
+  useEffect(() => {
+    const cookies = document.cookie.split(';');
+    const gCookie = cookies.find(c => c.trim().startsWith('googtrans='));
+    if (gCookie) {
+      const val = gCookie.split('=')[1];
+      if (val.includes('/hi')) setActiveLang('hi');
+      else if (val.includes('/mr')) setActiveLang('mr');
+      else setActiveLang('en');
+    }
+  }, []);
 
   useEffect(() => {
     const initTranslate = () => {
@@ -248,16 +257,7 @@ export function Navbar() {
                   const active = pathname === l.to || (l.to !== '/' && l.to !== '/dashboard' && pathname.startsWith(l.to));
                   return <SidebarNavLink key={l.to} item={l} active={active} />;
                 })}
-                <SidebarMenuItem>
-                  <SidebarMenuButton 
-                    onClick={() => setTranslateModalOpen(true)} 
-                    tooltip="Translate Page (Chrome Multilingual)" 
-                    className="hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
-                  >
-                    <Globe className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span className="truncate group-data-[collapsible=icon]:hidden font-semibold">Translate Page</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -269,18 +269,47 @@ export function Navbar() {
             <div className="flex flex-col gap-2 w-full px-2">
               <div className="flex items-center justify-between w-full group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-2">
                 <ThemeToggle />
-                <button
-                  onClick={() => setTranslateModalOpen(true)}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold hover:bg-emerald-500/20 transition-all shadow-sm group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:justify-center"
-                  title="Translate Page Info"
-                >
-                  <Globe className="h-4 w-4 text-emerald-500 shrink-0" />
-                  <span className="group-data-[collapsible=icon]:hidden">Guide</span>
-                </button>
               </div>
-              <div className="w-full flex justify-center group-data-[collapsible=icon]:hidden">
-                <div id="google_translate_element" className="w-full text-center"></div>
+              {/* Inline Language Switcher */}
+              <div className="group-data-[collapsible=icon]:hidden">
+                <div className="flex items-center gap-1 p-1 rounded-xl bg-muted/60 border border-border/50">
+                  {[
+                    { code: 'en', flag: '🇬🇧', label: 'EN' },
+                    { code: 'hi', flag: '🇮🇳', label: 'HI' },
+                    { code: 'mr', flag: '🇮🇳', label: 'MR' },
+                  ].map(({ code, flag, label }) => (
+                    <button
+                      key={code}
+                      type="button"
+                      onClick={() => {
+                        setActiveLang(code);
+                        const selectElem = document.querySelector('select.goog-te-combo') as HTMLSelectElement;
+                        if (selectElem) {
+                          selectElem.value = code;
+                          selectElem.dispatchEvent(new Event('change'));
+                        }
+                        const domain = window.location.hostname;
+                        document.cookie = `googtrans=/en/${code}; path=/`;
+                        if (domain !== 'localhost') {
+                          document.cookie = `googtrans=/en/${code}; domain=${domain}; path=/`;
+                        }
+                        if (!selectElem) window.location.reload();
+                      }}
+                      className={`flex-1 flex items-center justify-center gap-1 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                        activeLang === code
+                          ? 'bg-emerald-500 text-white shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                      }`}
+                      title={code === 'en' ? 'English' : code === 'hi' ? 'Hindi (हिंदी)' : 'Marathi (मराठी)'}
+                    >
+                      <span>{flag}</span>
+                      <span>{label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
+              {/* Hidden Google Translate element (keeps translation engine alive) */}
+              <div id="google_translate_element" className="hidden"></div>
             </div>
 
             {user ? (
@@ -326,122 +355,11 @@ export function Navbar() {
       </Sidebar>
 
       <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} items={cmdItems} />
-      <TranslateGuideModal open={translateModalOpen} onOpenChange={setTranslateModalOpen} />
     </>
   );
 }
 
-function TranslateGuideModal({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
-  const [selectedLang, setSelectedLang] = useState<string>('en');
 
-  useEffect(() => {
-    // Detect active Google Translate language from cookie
-    const cookies = document.cookie.split(';');
-    const gCookie = cookies.find(c => c.trim().startsWith('googtrans='));
-    if (gCookie) {
-      const val = gCookie.split('=')[1];
-      if (val.includes('/hi')) setSelectedLang('hi');
-      else if (val.includes('/mr')) setSelectedLang('mr');
-      else setSelectedLang('en');
-    }
-  }, [open]);
-
-  const handleSelectLanguage = (langCode: string) => {
-    setSelectedLang(langCode);
-
-    // 1. Try DOM combo select event for instant dynamic client-side translation
-    const selectElem = document.querySelector('select.goog-te-combo') as HTMLSelectElement;
-    if (selectElem) {
-      selectElem.value = langCode;
-      selectElem.dispatchEvent(new Event('change'));
-    }
-
-    // 2. Set googtrans cookies for persistence
-    const domain = window.location.hostname;
-    document.cookie = `googtrans=/en/${langCode}; path=/`;
-    if (domain !== 'localhost') {
-      document.cookie = `googtrans=/en/${langCode}; domain=${domain}; path=/`;
-    }
-
-    // 3. Fallback reload if DOM combo wasn't mounted yet
-    if (!selectElem) {
-      window.location.reload();
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px] p-6 rounded-2xl border border-emerald-500/20 shadow-2xl">
-        <DialogHeader className="pb-2 border-b border-border/40">
-          <DialogTitle className="flex items-center gap-2.5 text-base font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-            <Globe className="h-5 w-5 text-emerald-500" />
-            Language Selector
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-4 pt-4 text-xs">
-          <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-transparent border border-emerald-500/20 space-y-3">
-            <h4 className="font-bold text-foreground uppercase tracking-wide text-[11px] flex items-center gap-2">
-              <Languages className="w-4 h-4 text-emerald-500" />
-              Select Target Language:
-            </h4>
-            <div className="grid grid-cols-3 gap-2.5">
-              <button
-                type="button"
-                onClick={() => handleSelectLanguage('en')}
-                className={`p-3 rounded-xl border font-bold text-xs flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                  selectedLang === 'en'
-                    ? 'bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-500/30'
-                    : 'bg-background hover:bg-muted/80 text-foreground border-border'
-                }`}
-              >
-                <span className="text-base">🇬🇧</span>
-                <span>English</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSelectLanguage('hi')}
-                className={`p-3 rounded-xl border font-bold text-xs flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                  selectedLang === 'hi'
-                    ? 'bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-500/30'
-                    : 'bg-background hover:bg-muted/80 text-foreground border-border'
-                }`}
-              >
-                <span className="text-base">🇮🇳</span>
-                <span>Hindi (हिंदी)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSelectLanguage('mr')}
-                className={`p-3 rounded-xl border font-bold text-xs flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                  selectedLang === 'mr'
-                    ? 'bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-500/30'
-                    : 'bg-background hover:bg-muted/80 text-foreground border-border'
-                }`}
-              >
-                <span className="text-base">🇮🇳</span>
-                <span>Marathi (मराठी)</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-medium leading-relaxed flex items-start gap-2">
-            <Sparkles className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-            <span>Selecting a language instantly translates all AI health reports, vital metrics, doctor recommendations, and PDF exports!</span>
-          </div>
-
-          <div className="pt-2 flex justify-end">
-            <Button onClick={() => onOpenChange(false)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl px-5">
-              <CheckCircle2 className="w-4 h-4 mr-1.5" /> Apply & Close
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 
 function CommandPalette({
