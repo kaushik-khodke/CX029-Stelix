@@ -25,6 +25,7 @@ import {
   Search,
   LogOut,
   Stethoscope,
+  BrainCircuit,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -36,7 +37,6 @@ import {
 } from "../ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Badge } from "../ui/Badge";
-import { LanguageSwitcher } from "@/components/features/LanguageSwitcher";
 import { 
   Sidebar, 
   SidebarContent, 
@@ -118,9 +118,7 @@ export function Navbar() {
     { to: "/patient/consent", icon: <ShieldCheck className="h-4 w-4" />, label: "Consents", badge: pendingConsents },
     { to: "/patient/routines", icon: <HeartPulse className="h-4 w-4" />, label: "Health Tracker" },
     { to: "/patient/records", icon: <FileText className="h-4 w-4" />, label: "Medical Records" },
-    { to: "/patient/appointments", icon: <CalendarDays className="h-4 w-4" />, label: "Appointments" },
-    { to: "/patient/providers", icon: <Stethoscope className="h-4 w-4" />, label: "My Providers" },
-    { to: "/patient/settings", icon: <Settings className="h-4 w-4" />, label: "Settings" },
+    { to: "/patient/pharmacy-chat", icon: <BrainCircuit className="h-4 w-4" />, label: "Expert Pharmacy" },
   ];
 
   const doctorLinks: NavLinkItem[] = [
@@ -196,7 +194,7 @@ export function Navbar() {
       {/* SHADCN SIDEBAR */}
       <Sidebar variant="sidebar" collapsible="icon">
         <SidebarHeader className="h-16 flex flex-row items-center justify-between border-b px-4 group-data-[collapsible=icon]:!px-0 group-data-[collapsible=icon]:justify-center">
-          <Link to="/" className="flex items-center gap-3 overflow-hidden group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:w-full">
+          <button onClick={() => toggleSidebar()} className="flex items-center gap-3 overflow-hidden group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:w-full text-left hover:opacity-80 transition-opacity">
             <div className="relative shrink-0">
               <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-600 via-teal-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-primary/25">
                 <Activity className="w-5 h-5 text-white" />
@@ -207,7 +205,7 @@ export function Navbar() {
                 MyHealth<span className="opacity-80 font-bold text-teal-600 dark:text-teal-400">Chain</span>
               </div>
             </div>
-          </Link>
+          </button>
           <SidebarTrigger className="group-data-[collapsible=icon]:hidden" />
         </SidebarHeader>
 
@@ -229,7 +227,6 @@ export function Navbar() {
           <div className="flex flex-col gap-2 group-data-[collapsible=icon]:items-center">
             {/* Utilities */}
             <div className="flex items-center justify-between w-full px-2 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-2">
-              <LanguageSwitcher />
               <ThemeToggle />
             </div>
 
