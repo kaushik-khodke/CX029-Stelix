@@ -71,7 +71,7 @@ function RoleRoute({
   allowedRole,
   children,
 }: {
-  allowedRole: "patient" | "doctor" | "pharmacist" | "hospital";
+  allowedRole: "patient" | "doctor" | "pharmacist" | "hospital" | Array<"patient" | "doctor" | "pharmacist" | "hospital">;
   children: React.ReactNode;
 }) {
   const { user, role, loading } = useAuth();
@@ -79,10 +79,11 @@ function RoleRoute({
   if (loading) return <LoadingSpinner />;
   if (!user) return <Navigate to="/login" replace />;
 
-  // Use the same smart resolvedRole from useAuth — do NOT recompute inline.
-  // Inline recomputation (profile?.role ?? meta) would bypass the trigger/RLS
-  // workaround and cause an infinite redirect loop for pharmacists.
-  if (role !== allowedRole) return <Navigate to="/dashboard" replace />;
+  const isAllowed = Array.isArray(allowedRole)
+    ? allowedRole.includes(role as any)
+    : role === allowedRole;
+
+  if (!isAllowed) return <Navigate to="/dashboard" replace />;
 
   return <React.Suspense fallback={<LoadingSpinner />}>{children}</React.Suspense>;
 }
@@ -244,13 +245,19 @@ function MainLayout() {
           <Route
             path="/patient/analysis"
             element={
-              <RoleRoute allowedRole="patient">
+              <RoleRoute allowedRole={["patient", "doctor", "hospital"]}>
                 <Analysis />
               </RoleRoute>
             }
           />
-
-          {/* Doctor */}
+          <Route
+            path="/patient/analysis/:patientId"
+            element={
+              <RoleRoute allowedRole={["patient", "doctor", "hospital"]}>
+                <Analysis />
+              </RoleRoute>
+            }
+          />
           <Route
             path="/patient/pharmacy-chat"
             element={
@@ -264,6 +271,16 @@ function MainLayout() {
             element={
               <RoleRoute allowedRole="patient">
                 <MyMedicines />
+              </RoleRoute>
+            }
+          />
+
+          {/* Doctor */}
+          <Route
+            path="/doctor"
+            element={
+              <RoleRoute allowedRole="doctor">
+                <DoctorDashboard />
               </RoleRoute>
             }
           />
@@ -294,11 +311,20 @@ function MainLayout() {
             }
           />
 
+          {/* Hospital */}
+          <Route
+            path="/hospital"
+            element={
+              <RoleRoute allowedRole="hospital">
+                <HospitalDashboard defaultTab="queue" />
+              </RoleRoute>
+            }
+          />
           <Route
             path="/hospital/dashboard"
             element={
               <RoleRoute allowedRole="hospital">
-                <HospitalDashboard />
+                <HospitalDashboard defaultTab="queue" />
               </RoleRoute>
             }
           />

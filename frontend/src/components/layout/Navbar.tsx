@@ -178,10 +178,8 @@ export function Navbar() {
   ];
 
   const hospitalLinks: NavLinkItem[] = [
-    { to: "/hospital", icon: <LayoutDashboard className="h-4 w-4" />, label: "Overview" },
-    { to: "/hospital/staff", icon: <UserCircle2 className="h-4 w-4" />, label: "Staff Directory" },
-    { to: "/hospital/patients", icon: <HeartPulse className="h-4 w-4" />, label: "All Patients" },
-    { to: "/hospital/settings", icon: <Settings className="h-4 w-4" />, label: "Settings" },
+    { to: "/hospital/triage", icon: <Activity className="h-4 w-4 text-amber-500" />, label: "Emergency Triage" },
+    { to: "/hospital/load-balancer", icon: <LayoutDashboard className="h-4 w-4 text-blue-500" />, label: "Resource Balancer" },
   ];
 
   const links = role === 'doctor' ? doctorLinks 
