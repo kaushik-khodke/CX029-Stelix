@@ -21,7 +21,8 @@ import {
     Calendar,
     Droplet,
     FileText,
-    Users
+    Users,
+    MessageSquare
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -78,6 +79,7 @@ export function Analysis() {
     const [data, setData] = useState<FullAnalysisResponse | null>(null);
     const [trends, setTrends] = useState<TrendPoint[]>([]);
     const [error, setError] = useState<string | null>(null);
+    const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
     const resultsRef = useRef<HTMLDivElement>(null);
 
     const handleDownload = async () => {
@@ -116,6 +118,39 @@ export function Analysis() {
         } catch (err) {
             console.error("PDF Download failed:", err);
             alert("Failed to generate PDF. Please try again.");
+        }
+    };
+
+    const handleSendWhatsapp = async () => {
+        if (!patientId || !data) return;
+        setSendingWhatsapp(true);
+        try {
+            const res = await fetch(`${API_BASE_URL}/send_report_whatsapp`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: patientId,
+                    risk_level: data.prediction.risk_level,
+                    analysis_text: data.detailed_analysis,
+                    tips: data.tips
+                })
+            });
+            let json = null;
+            try {
+                json = await res.json();
+            } catch (e) {}
+            
+            if (res.ok && json?.success) {
+                alert("Report sent successfully to your registered WhatsApp number!");
+            } else {
+                const errMsg = json?.detail || "Failed to send WhatsApp report. Make sure a phone number is registered in your profile.";
+                throw new Error(errMsg);
+            }
+        } catch (err: any) {
+            console.error("WhatsApp Send failed:", err);
+            alert(err.message || "Failed to send WhatsApp report. Please try again.");
+        } finally {
+            setSendingWhatsapp(false);
         }
     };
 
@@ -291,15 +326,27 @@ export function Analysis() {
                                 <CheckCircle className="text-emerald-500 w-5 h-5" />
                                 <span className="font-semibold">Analysis Ready</span>
                             </div>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleDownload}
-                                className="flex items-center gap-2 hover:bg-primary hover:text-white transition-colors"
-                            >
-                                <FileText className="w-4 h-4" />
-                                Download PDF Report
-                            </Button>
+                            <div className="flex items-center gap-3">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleDownload}
+                                    className="flex items-center gap-2 hover:bg-primary hover:text-white transition-colors"
+                                >
+                                    <FileText className="w-4 h-4" />
+                                    Download PDF Report
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleSendWhatsapp}
+                                    disabled={sendingWhatsapp}
+                                    className="flex items-center gap-2 hover:bg-emerald-600 hover:text-white border-emerald-500/70 text-emerald-600 dark:text-emerald-400 dark:border-emerald-500/50 dark:hover:bg-emerald-600 transition-colors"
+                                >
+                                    <MessageSquare className="w-4 h-4" />
+                                    {sendingWhatsapp ? "Sending..." : "Receive on WhatsApp"}
+                                </Button>
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

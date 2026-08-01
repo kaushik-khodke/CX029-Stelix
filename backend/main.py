@@ -2239,6 +2239,73 @@ async def analyze_health(request: HealthAnalysisRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+class WhatsAppReportRequest(BaseModel):
+    user_id: str
+    risk_level: str
+    analysis_text: str
+    tips: list
+
+@app.post("/send_report_whatsapp")
+async def send_report_whatsapp(req: WhatsAppReportRequest):
+    """
+    Sends the AI health analysis report to the patient's verified WhatsApp phone number.
+    """
+    try:
+        from resource_load import _get_sb
+        sb = _get_sb()
+        
+        # 1. Resolve internal patient_db_id (patients.id) and auth_uid
+        patient_db_id = get_patient_db_id(req.user_id)
+        auth_uid = get_auth_user_id(patient_db_id) if patient_db_id else req.user_id
+        
+        candidate_ids = list(set(filter(None, [patient_db_id, auth_uid, req.user_id])))
+        
+        # 2. Get profile details (name and phone)
+        profile_id = auth_uid
+        if not profile_id and patient_db_id:
+            profile_id = get_auth_user_id(patient_db_id)
+            
+        if not profile_id:
+            # Fallback query patient
+            patient_res = sb.table("patients").select("user_id").in_("id", candidate_ids).maybe_single().execute()
+            if patient_res and patient_res.data:
+                profile_id = patient_res.data["user_id"]
+                
+        if not profile_id:
+            profile_id = req.user_id
+            
+        profile_res = sb.table("profiles").select("phone, full_name").eq("id", profile_id).maybe_single().execute()
+        if not profile_res or not profile_res.data or not profile_res.data.get("phone"):
+            raise HTTPException(
+                status_code=400, 
+                detail="No phone number associated with your profile. Please update your profile with a valid phone number."
+            )
+            
+        phone = profile_res.data["phone"]
+        patient_name = profile_res.data.get("full_name") or "Patient"
+        
+        from whatsapp_service import send_whatsapp_report
+        success = await send_whatsapp_report(
+            phone=phone,
+            patient_name=patient_name,
+            risk_level=req.risk_level,
+            analysis_text=req.analysis_text,
+            tips=req.tips
+        )
+        
+        if success:
+            return {"success": True, "message": "Report sent successfully on WhatsApp!"}
+        else:
+            raise HTTPException(
+                status_code=500, 
+                detail="Failed to send report via WhatsApp gateway. Please check if the WhatsApp service is running."
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error in send_report_whatsapp: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/pharmacy/refill-alerts/{patient_id}")
 async def get_refill_alerts(patient_id: str):
     """Fetch proactive refill alerts for a patient."""

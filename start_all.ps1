@@ -31,7 +31,7 @@ Start-Sleep -Seconds 4
 # 2. Start Frontend (vite dev)
 # ----------------------------------------------------------
 Write-Host '[2/4] Starting Frontend on port 3000...' -ForegroundColor Yellow
-$frontendProc = Start-Process -FilePath "npm" `
+$frontendProc = Start-Process -FilePath "npm.cmd" `
     -ArgumentList "run", "dev", "--", "--port", "3000" `
     -WorkingDirectory $FRONTEND `
     -PassThru -WindowStyle Normal
@@ -93,9 +93,9 @@ while ($retries -lt $maxRetries) {
 if (-not $tunnelUrl) {
     Write-Host '' -ForegroundColor Red
     Write-Host '  [!] Could not obtain tunnel URL. Check serveo_stderr.txt for errors.' -ForegroundColor Red
-    Write-Host '      Backend and Frontend are still running.' -ForegroundColor Yellow
+    Write-Host '      Continuing in Local Mode (localhost:8000)...' -ForegroundColor Yellow
     Write-Host ''
-    exit 1
+    $tunnelUrl = "http://localhost:8000"
 }
 
 Write-Host ('  -> Tunnel URL: ' + $tunnelUrl) -ForegroundColor Green
