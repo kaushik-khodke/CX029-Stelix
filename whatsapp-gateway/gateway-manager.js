@@ -75,6 +75,7 @@ class WhatsAppGatewayManager {
                 remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1041190697-alpha.html',
             },
             puppeteer: {
+                executablePath: path.join(__dirname, 'chrome', 'win64-146.0.7680.31', 'chrome-win64', 'chrome.exe'),
                 headless: true,
                 bypassCSP: true,
                 args: [
