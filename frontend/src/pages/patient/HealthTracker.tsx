@@ -30,7 +30,7 @@ export default function HealthTracker() {
       <div className="absolute bottom-0 right-0 w-[50%] h-[60%] rounded-full bg-indigo-500/10 blur-3xl -z-10" />
       <div className="absolute inset-0 -z-10 mask-radial-faded bg-background/40 backdrop-blur-[1px]" />
 
-      <div className="container mx-auto px-4 py-8 relative">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-8 relative">
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}

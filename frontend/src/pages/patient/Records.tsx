@@ -219,7 +219,7 @@ export default function Records() {
 
   return (
     <div className="min-h-screen relative overflow-hidden font-sans selection:bg-primary/30">
-      <div className="container mx-auto px-4 py-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}

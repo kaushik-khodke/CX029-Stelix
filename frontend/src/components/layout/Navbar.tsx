@@ -372,7 +372,7 @@ export function Navbar() {
         transition={{ duration: 0.3, ease: "easeInOut" }}
       >
         <div className="glass-panel">
-          <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-3">
+          <div className="w-full px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
             {/* Brand */}
             <Link to="/" className="flex items-center gap-3 min-w-[180px] group">
               <div className="relative">
