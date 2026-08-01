@@ -37,7 +37,7 @@ import {
 } from "../ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Badge } from "../ui/Badge";
-import { LanguageSwitcher } from "@/components/features/LanguageSwitcher";
+
 import { 
   Sidebar, 
   SidebarContent, 
@@ -227,7 +227,6 @@ export function Navbar() {
           <div className="flex flex-col gap-2 group-data-[collapsible=icon]:items-center">
             {/* Utilities */}
             <div className="flex items-center justify-between w-full px-2 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-2">
-              <LanguageSwitcher />
               <ThemeToggle />
             </div>
 
