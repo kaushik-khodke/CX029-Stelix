@@ -72,11 +72,12 @@ class WhatsAppGatewayManager {
             authStrategy: new LocalAuth(),
             webVersionCache: {
                 type: 'remote',
-                remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1041190697-alpha.html',
+                remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1014141666-alpha.html',
             },
             puppeteer: {
                 headless: true,
                 bypassCSP: true,
+                userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36',
                 args: [
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
