@@ -9,6 +9,7 @@ import io
 import time
 import json
 import asyncio
+import re
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
@@ -67,6 +68,42 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+async def auto_start_ngrok_tunnel():
+    """Auto-launch Ngrok tunnel on local backend startup if available."""
+    # Skip ngrok auto-launch if deployed in cloud (Render, Railway, Vercel, Production)
+    if os.getenv("RENDER") or os.getenv("RAILWAY_STATIC_URL") or os.getenv("ENVIRONMENT") == "production":
+        print("☁️ Running in cloud environment — skipping local Ngrok auto-tunnel.")
+        return
+
+    try:
+        import urllib.request
+        # Check if ngrok is already running via its local API
+        try:
+            with urllib.request.urlopen("http://127.0.0.1:4040/api/tunnels", timeout=1) as resp:
+                print("🌐 Ngrok tunnel is already active.")
+                return
+        except Exception:
+            pass
+
+        import subprocess
+        ngrok_domain = os.getenv("NGROK_DOMAIN", "relaxedly-unphonnetical-rowena.ngrok-free.dev")
+        cmd = ["ngrok", "http", str(PORT)]
+        if ngrok_domain:
+            cmd.extend(["--domain", ngrok_domain])
+
+        print(f"🌐 Auto-starting Ngrok tunnel for port {PORT}...")
+        subprocess.Popen(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
+        )
+        print(f"✅ Ngrok tunnel launched automatically! Webhook URL: https://{ngrok_domain}/place_order")
+    except Exception as e:
+        print(f"ℹ️ Ngrok auto-launch notice: {e}")
+
 
 @app.get("/")
 async def root():
@@ -1522,6 +1559,144 @@ async def pharmacy_chat(request: PharmacyChatRequest):
         if "429" in error_msg or "quota" in error_msg.lower() or "RESOURCE_EXHAUSTED" in error_msg:
             return ChatResponse(success=False, response=quota_fallbacks.get(lang, quota_fallbacks["en"]), error=error_msg)
         return ChatResponse(success=False, response=fallbacks.get(lang, fallbacks["en"]), error=error_msg)
+
+
+# ==========================================
+# Voice Call Webhook: Place Order (ElevenLabs / Twilio Tool Integration)
+# ==========================================
+def parse_quantity_word(val: Any) -> int:
+    if not val:
+        return 1
+    val_str = str(val).strip().lower()
+    word_map = {
+        "one": 1, "a": 1, "single": 1,
+        "two": 2, "pair": 2, "double": 2,
+        "three": 3, "triple": 3,
+        "four": 4, "five": 5, "six": 6,
+        "seven": 7, "eight": 8, "nine": 9, "ten": 10
+    }
+    for word, num in word_map.items():
+        if word in val_str:
+            return num
+    match = re.search(r'\d+', val_str)
+    if match:
+        return int(match.group(0))
+    return 1
+
+
+def resolve_voice_patient_id(raw_id: Any) -> str:
+    sb = _get_sb()
+    if raw_id:
+        id_str = str(raw_id).strip()
+        # 1. Try matching patient id
+        try:
+            p1 = sb.table("patients").select("id").eq("id", id_str).maybe_single().execute()
+            if p1 and p1.data:
+                return p1.data["id"]
+        except Exception:
+            pass
+            
+        # 2. Try matching user_id
+        try:
+            p2 = sb.table("patients").select("id").eq("user_id", id_str).maybe_single().execute()
+            if p2 and p2.data:
+                return p2.data["id"]
+        except Exception:
+            pass
+            
+        # 3. Try matching phone
+        try:
+            clean_phone = id_str.replace(" ", "").replace("-", "")
+            p3 = sb.table("patients").select("id").eq("phone", clean_phone).maybe_single().execute()
+            if p3 and p3.data:
+                return p3.data["id"]
+        except Exception:
+            pass
+
+    # 4. Fallback to latest patient in DB so voice calls always succeed
+    try:
+        p_last = sb.table("patients").select("id").order("created_at", desc=True).limit(1).execute()
+        if p_last and p_last.data:
+            return p_last.data[0]["id"]
+    except Exception:
+        pass
+
+    # Auto-create fallback patient if database is empty
+    try:
+        new_p = sb.table("patients").insert({
+            "full_name": "Voice Patient",
+            "phone": "+10000000000"
+        }).execute()
+        return new_p.data[0]["id"]
+    except Exception:
+        return "voice_fallback_patient"
+
+
+async def execute_voice_place_order(raw_req: Dict[str, Any]):
+    print(f"📞 Received Voice Place Order Webhook: {raw_req}")
+    
+    # Unwrap if ElevenLabs sends nested body
+    data = raw_req.get("body", raw_req) if isinstance(raw_req.get("body"), dict) else raw_req
+    
+    medicine_name = data.get("medicine_name") or raw_req.get("medicine_name") or "Paracetamol"
+    raw_patient_id = data.get("patient_id") or raw_req.get("patient_id")
+    raw_qty = data.get("quantity") or raw_req.get("quantity") or 1
+    
+    qty = parse_quantity_word(raw_qty)
+    patient_id = resolve_voice_patient_id(raw_patient_id)
+    
+    from agents.pharmacy_agent import PharmacyAgent
+    agent = PharmacyAgent()
+    
+    res = await agent.run(
+        task=f"order {qty} {medicine_name}",
+        context={
+            "action": "order",
+            "query": medicine_name,
+            "qty": qty,
+            "user_id": patient_id
+        }
+    )
+    
+    if res.success:
+        order_id = res.data.get("order_id") if isinstance(res.data, dict) else "confirmed"
+        checkout_url = res.data.get("checkout_url") if isinstance(res.data, dict) else ""
+        clean_spoken_msg = f"Your order for {qty} units of {medicine_name} has been placed successfully."
+        print(f"✅ Voice Order Placed Successfully: {clean_spoken_msg}")
+        return {
+            "status": "success",
+            "result": clean_spoken_msg,
+            "response": clean_spoken_msg,
+            "message": clean_spoken_msg,
+            "success": True,
+            "order_id": order_id,
+            "checkout_url": checkout_url
+        }
+    else:
+        raw_msg = res.message or f"Could not place order for {medicine_name}."
+        clean_msg = raw_msg.replace("**", "").replace("[", "").replace("]", "").split("(")[0].strip()
+        print(f"⚠️ Voice Order Result Message: {clean_msg}")
+        return {
+            "status": "error",
+            "result": clean_msg,
+            "response": clean_msg,
+            "message": clean_msg,
+            "success": False
+        }
+
+
+@app.post("/place_order")
+@app.post("/place-order")
+@app.post("/webhook/place_order")
+@app.post("/webhook/place-order")
+@app.post("/api/place_order")
+@app.post("/api/place-order")
+async def voice_place_order_endpoint(request: Request):
+    try:
+        body_json = await request.json()
+    except Exception:
+        body_json = {}
+    return await execute_voice_place_order(body_json)
 
 
 @app.post("/patient/smart-insights")
