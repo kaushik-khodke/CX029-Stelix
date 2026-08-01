@@ -108,8 +108,9 @@ export function UploadWizard({ open, onClose, onSuccess }: UploadWizardProps) {
         record_date: data.recordDate,
         doctor_name: data.doctorName || null,
         notes: data.notes || null,
+        extracted_text: data.notes || null, // Set initial fallback in extracted_text column
         ipfs_hash: ipfsResult.ipfsHash,
-        ipfs_cid: ipfsResult.ipfsHash,  // ← ADD THIS LINE (same as ipfs_hash)
+        ipfs_cid: ipfsResult.ipfsHash,
 
         file_url: ipfsUrl,
         file_size: file.size,
@@ -140,6 +141,22 @@ export function UploadWizard({ open, onClose, onSuccess }: UploadWizardProps) {
 
       console.log('✅ Record saved to database!')
       console.log('📋 Saved record:', recordData)
+
+      // Step 5: Automatically trigger AI Document OCR and vector chunking in background
+      try {
+        const { API_BASE_URL } = await import('@/lib/api')
+        fetch(`${API_BASE_URL}/process_document`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            file_url: ipfsUrl,
+            record_id: recordData.id,
+            patient_id: patientId,
+          })
+        }).catch(err => console.warn('Background AI document processing warning:', err))
+      } catch (e) {
+        console.warn('Could not trigger background AI document processing:', e)
+      }
 
       alert(`✅ Record uploaded successfully!
       

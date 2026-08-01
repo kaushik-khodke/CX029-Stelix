@@ -5,11 +5,23 @@ import requests
 import io
 import PyPDF2
 import os
+import sys
 import asyncio
 from typing import List, Optional
 from langfuse.decorators import observe
 
-from ai_config import safe_generate_content, get_ai_client
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+from ai_config import safe_generate_content, safe_embed_content, get_ai_client
 
 class RAGService:
     """
@@ -36,15 +48,12 @@ class RAGService:
         Search medical records using vector similarity
         """
         try:
-            # Generate embedding for query
-            res = await asyncio.to_thread(
-                self.client.models.embed_content,
-                model="text-embedding-004",
+            # Generate embedding for query safely
+            res = await safe_embed_content(
                 contents=query,
-                config=types.EmbedContentConfig(
-                    task_type="RETRIEVAL_QUERY",
-                    output_dimensionality=768
-                )
+                task_type="RETRIEVAL_QUERY",
+                output_dimensionality=768,
+                client=self.client
             )
             query_embedding = res.embeddings[0].values
             
@@ -81,17 +90,32 @@ class RAGService:
         Process a PDF document: extract text, create chunks, generate embeddings
         """
         try:
-            print(f"📥 Downloading file from: {file_url}")
+            # Multi-gateway download attempt for IPFS or URLs
+            download_urls = [file_url]
+            if '/ipfs/' in file_url or 'ipfs://' in file_url or file_url.startswith('Qm') or file_url.startswith('bafy'):
+                cid = file_url.split('/ipfs/')[-1].replace('ipfs://', '').strip()
+                download_urls = [
+                    f"https://ipfs.io/ipfs/{cid}",
+                    f"https://gateway.pinata.cloud/ipfs/{cid}",
+                    f"https://cloudflare-ipfs.com/ipfs/{cid}",
+                    f"https://dweb.link/ipfs/{cid}"
+                ]
             
-            # Download file
-            response = requests.get(file_url)
-            response.raise_for_status()
-            content_type = response.headers.get('Content-Type', '').lower()
-            
+            response = None
+            for url in download_urls:
+                try:
+                    res = requests.get(url, timeout=10)
+                    if res.status_code == 200 and len(res.content) > 0:
+                        response = res
+                        print(f"✅ Successfully downloaded file from: {url}")
+                        break
+                except Exception as dl_err:
+                    print(f"⚠️ Gateway download failed for {url}: {dl_err}")
+
             full_text = ""
             
-            if 'pdf' in content_type.lower() or 'image/' in content_type or file_url.lower().endswith(('.png', '.jpg', '.jpeg', '.pdf')):
-                print(f"🖼️ Processing Document via Vision Model (MIME: {content_type})...")
+            if response and response.content:
+                content_type = response.headers.get('Content-Type', '').lower()
                 mime_type = 'application/pdf'
                 if 'png' in content_type.lower() or file_url.lower().endswith('.png'):
                     mime_type = 'image/png'
@@ -99,6 +123,7 @@ class RAGService:
                     mime_type = 'image/jpeg'
                 
                 try:
+                    print(f"🖼️ Processing Document via Vision Model (MIME: {mime_type})...")
                     vision_response = await safe_generate_content(
                         contents=[
                             "Extract all the text from this document. If there is handwriting, transcribe it accurately. If there are tables or forms, structure them clearly as text. Return ONLY the extracted text. If no text is found, return an empty string.",
@@ -107,23 +132,33 @@ class RAGService:
                         task_type="text_fast",
                         client=self.client
                     )
-                    full_text = vision_response.text
-                    print(f"✅ Extracted {len(full_text)} characters from document")
+                    if vision_response and vision_response.text:
+                        full_text = vision_response.text.strip()
+                        print(f"✅ Extracted {len(full_text)} characters from document")
                 except Exception as ve:
-                    print(f"❌ AI Extraction failed: {ve}")
-                    raise ValueError(f"AI Document Extraction failed: {ve}")
-            else:
-                raise ValueError(f"Unsupported file type: {content_type}")
-            
+                    print(f"⚠️ AI Vision Extraction warning: {ve}")
+
+            # Fallback to record notes & title if file OCR had no text or download failed
             if not full_text or not full_text.strip():
-                raise ValueError("Could not extract any text from the file")
+                try:
+                    rec = self.supabase.table("records").select("notes, title").eq("id", record_id).maybe_single().execute()
+                    if rec and rec.data:
+                        title_str = rec.data.get("title") or "Medical Record"
+                        notes_str = rec.data.get("notes") or ""
+                        full_text = f"Record Title: {title_str}\nNotes: {notes_str}".strip()
+                        print(f"ℹ️ Used record metadata fallback text ({len(full_text)} chars)")
+                except Exception as fe:
+                    print(f"⚠️ Could not fetch record fallback metadata: {fe}")
+
+            if not full_text or not full_text.strip():
+                full_text = f"Medical Record ID {record_id} uploaded on system."
             
-            # Save full text to records table
+            # Save full text to records table in extracted_text column
             try:
                 self.supabase.table("records").update({
                     "extracted_text": full_text
                 }).eq("id", record_id).execute()
-                print("✅ Saved full text to records table")
+                print("✅ Saved full text to records.extracted_text column")
             except Exception as e:
                 print(f"⚠️ Could not save full text: {e}")
             
@@ -138,14 +173,11 @@ class RAGService:
             # Generate embeddings and prepare for batch insert
             rows_to_insert = []
             for chunk in chunks:
-                embedding_result = await asyncio.to_thread(
-                    self.client.models.embed_content,
-                    model="text-embedding-004",
+                embedding_result = await safe_embed_content(
                     contents=chunk,
-                    config=types.EmbedContentConfig(
-                        task_type="RETRIEVAL_DOCUMENT",
-                        output_dimensionality=768
-                    )
+                    task_type="RETRIEVAL_DOCUMENT",
+                    output_dimensionality=768,
+                    client=self.client
                 )
                 
                 rows_to_insert.append({
@@ -191,35 +223,38 @@ class RAGService:
 
     async def get_patient_records(self, user_id: str) -> List[str]:
         """
-        Get all text records for a patient
+        Get all text records for a patient from both document_chunks and records.extracted_text
         """
         try:
             candidate_ids = self._get_candidate_patient_ids(user_id)
-            print(f"🔍 Fetching chunks for candidate IDs: {candidate_ids}")
+            print(f"🔍 Fetching chunks & records for candidate IDs: {candidate_ids}")
             
-            response = self.supabase.table('document_chunks')\
+            # 1. Fetch from document_chunks
+            chunk_res = self.supabase.table('document_chunks')\
                 .select('content')\
                 .in_('patient_id', candidate_ids)\
                 .execute()
             
-            if response.data:
-                contents = [item['content'] for item in response.data if item.get('content')]
-                if contents:
-                    print(f"✅ Found {len(contents)} chunks in document_chunks")
-                    return contents
+            chunk_contents = [item['content'] for item in (chunk_res.data or []) if item.get('content')]
             
-            print("⚠️ No chunks found in document_chunks, checking records table fallback...")
-            
-            # Fallback to records.extracted_text
-            fallback = self.supabase.table('records')\
-                .select('extracted_text')\
+            # 2. Fetch from records.extracted_text and notes
+            rec_res = self.supabase.table('records')\
+                .select('extracted_text, notes, title')\
                 .in_('patient_id', candidate_ids)\
                 .execute()
             
-            if fallback.data:
-                records = [r['extracted_text'] for r in fallback.data if r.get('extracted_text')]
-                print(f"✅ Found {len(records)} records in fallback")
-                return records
+            rec_contents = []
+            if rec_res.data:
+                for r in rec_res.data:
+                    if r.get('extracted_text') and r['extracted_text'].strip():
+                        rec_contents.append(r['extracted_text'].strip())
+                    elif r.get('notes') and r['notes'].strip():
+                        rec_contents.append(f"{r.get('title', 'Record')}: {r['notes'].strip()}")
+
+            all_records = list(dict.fromkeys(chunk_contents + rec_contents))
+            if all_records:
+                print(f"✅ Found {len(all_records)} total records/chunks for AI analysis")
+                return all_records
             
             print("❌ No records found at all for candidate IDs")
             return []

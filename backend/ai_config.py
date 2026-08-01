@@ -23,7 +23,8 @@ MODEL_TEXT_FAST_FALLBACK = "gemini-2.5-flash"
 MODEL_TOOL_AGENT = "gemini-2.5-flash"
 MODEL_TOOL_AGENT_FALLBACK = "gemini-2.0-flash"
 
-MODEL_EMBEDDING = "text-embedding-004"
+MODEL_EMBEDDING = "gemini-embedding-001"
+MODEL_EMBEDDING_FALLBACK = "text-embedding-004"
 
 _client_instance: Optional[genai.Client] = None
 
@@ -86,3 +87,54 @@ async def safe_generate_content(
     if last_exception:
         raise last_exception
     raise RuntimeError("Failed to generate content after retries.")
+
+
+async def safe_embed_content(
+    contents: str,
+    task_type: str = "RETRIEVAL_DOCUMENT",
+    output_dimensionality: int = 768,
+    client: Optional[genai.Client] = None
+) -> Any:
+    """
+    Safely invoke client.models.embed_content with automatic fallback for embedding models.
+    """
+    if client is None:
+        client = get_ai_client()
+
+    models_to_try = [MODEL_EMBEDDING, MODEL_EMBEDDING_FALLBACK, "embedding-001"]
+    last_exception = None
+
+    for model_name in models_to_try:
+        try:
+            config = types.EmbedContentConfig(
+                task_type=task_type,
+                output_dimensionality=output_dimensionality
+            )
+            res = await asyncio.to_thread(
+                client.models.embed_content,
+                model=model_name,
+                contents=contents,
+                config=config
+            )
+            return res
+        except Exception as e:
+            last_exception = e
+            err_str = str(e)
+            if "404" in err_str or "NOT_FOUND" in err_str or "supported" in err_str.lower():
+                print(f"⚠️ Embedding model {model_name} not found or not supported. Retrying with fallback...")
+                continue
+            else:
+                # Try without output_dimensionality config if config rejected
+                try:
+                    res = await asyncio.to_thread(
+                        client.models.embed_content,
+                        model=model_name,
+                        contents=contents
+                    )
+                    return res
+                except Exception:
+                    raise e
+
+    if last_exception:
+        raise last_exception
+    raise RuntimeError("Failed to generate embedding after retries.")
