@@ -190,9 +190,48 @@ export function useAuth() {
           console.error("Failed to clear chat session:", err);
         }
       }
-      await supabase.auth.signOut();
+      // 1. Try global signout first, fallback to local signout
+      try {
+        await supabase.auth.signOut({ scope: 'global' });
+      } catch (err1) {
+        try {
+          await supabase.auth.signOut({ scope: 'local' });
+        } catch (err2) {
+          console.warn("Local signOut notice:", err2);
+        }
+      }
     } finally {
-      // Always route to login even if signOut throws
+      // 2. Explicitly wipe all Supabase auth tokens from localStorage and sessionStorage
+      try {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith('sb-') || key.includes('supabase') || key.includes('auth-token'))) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach((k) => localStorage.removeItem(k));
+
+        const sessionKeysToRemove: string[] = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const key = sessionStorage.key(i);
+          if (key && (key.startsWith('sb-') || key.includes('supabase') || key.includes('auth-token'))) {
+            sessionKeysToRemove.push(key);
+          }
+        }
+        sessionKeysToRemove.forEach((k) => sessionStorage.removeItem(k));
+      } catch (e) {
+        console.error("Storage clear error:", e);
+      }
+
+      // 3. Reset internal React refs and state
+      profileRef.current = null;
+      lastFetchedUserIdRef.current = null;
+      setUser(null);
+      setProfile(null);
+      setNeedsOnboarding(false);
+
+      // 4. Navigate to login
       navigate("/login");
     }
   }, [navigate, user?.id]);
