@@ -310,4 +310,68 @@
   .shadow-glow-secondary {
     box-shadow: 0 0 20px -5px theme('colors.secondary.DEFAULT');
   }
+
+  /* Translation Resilience & Google Chrome Font Tag Reset */
+  font {
+    background-color: transparent !important;
+    box-shadow: none !important;
+    vertical-align: baseline !important;
+  }
+
+  .break-word-translated {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  /* Hide Google Translate top toolbar banner & frame */
+  .goog-te-banner-frame,
+  .skiptranslate,
+  #goog-gt-tt,
+  .goog-te-balloon-frame {
+    display: none !important;
+  }
+
+  /* Prevent body from shifting down when translated */
+  body {
+    top: 0px !important;
+    position: static !important;
+  }
+
+  /* Clean Google Translate Dropdown Styling */
+  #google_translate_element {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  #google_translate_element select {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    background-color: rgba(255, 255, 255, 0.9);
+    color: #0f172a;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    outline: none;
+    transition: all 0.2s ease;
+  }
+
+  .dark #google_translate_element select {
+    background-color: rgba(15, 23, 42, 0.9);
+    color: #f8fafc;
+    border-color: rgba(16, 185, 129, 0.4);
+  }
+
+  #google_translate_element select:hover {
+    border-color: #10b981;
+  }
+
+  .goog-te-gadget {
+    color: transparent !important;
+    font-size: 0 !important;
+  }
+
+  .goog-te-gadget .goog-te-combo {
+    margin: 0 !important;
+  }
 }

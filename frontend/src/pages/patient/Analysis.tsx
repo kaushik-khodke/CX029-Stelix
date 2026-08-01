@@ -147,6 +147,15 @@ export function Analysis() {
                 backgroundColor: '#f8fafc',
                 logging: false,
                 windowWidth: resultsRef.current.scrollWidth,
+                onclone: (clonedDoc) => {
+                    // Ensure Chrome Translate <font> elements are styled cleanly in cloned DOM for PDF export
+                    const fontElems = clonedDoc.querySelectorAll('font');
+                    fontElems.forEach((f) => {
+                        (f as HTMLElement).style.backgroundColor = 'transparent';
+                        (f as HTMLElement).style.boxShadow = 'none';
+                        (f as HTMLElement).style.verticalAlign = 'baseline';
+                    });
+                }
             });
 
             const imgData = canvas.toDataURL("image/png");
