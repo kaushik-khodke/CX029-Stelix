@@ -6,26 +6,25 @@ import { triggerConsentUpdate } from '@/hooks/useConsentsCount'
 import { VerifyPinDialog } from './VerifyPinDialog'
 import { Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { useAuth } from '@/hooks/useAuth'
 
 export function ConsentRequestsList() {
   const [requests, setRequests] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedRequest, setSelectedRequest] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchRequests()
-  }, [])
+  const { user } = useAuth()
 
   const fetchRequests = async () => {
-    const { data: user } = await supabase.auth.getUser()
-    
+    if (!user?.id) return
+
     const { data, error } = await supabase
       .from('consent_requests')
       .select(`
         *,
         doctors (name, specialization)
       `)
-      .eq('patient_id', user.user?.id)
+      .eq('patient_id', user.id)
       .order('created_at', { ascending: false })
 
     if (!error) {
@@ -33,6 +32,33 @@ export function ConsentRequestsList() {
     }
     setLoading(false)
   }
+
+  useEffect(() => {
+    if (!user?.id) return
+
+    fetchRequests()
+
+    const channel = supabase
+      .channel('public:consent_requests')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'consent_requests',
+          filter: `patient_id=eq.${user.id}`,
+        },
+        () => {
+          fetchRequests()
+          triggerConsentUpdate()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [user?.id])
 
   const handleReject = async (requestId: string) => {
     if (!confirm('Are you sure you want to reject this request?')) return

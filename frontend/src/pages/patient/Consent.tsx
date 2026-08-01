@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/dialog'
 
 import { AlertTriangle, Ban, CheckCircle2, Clock, ShieldCheck } from 'lucide-react'
-import { TiltCard } from '@/components/ui/TiltCard'
+
 
 type ConsentStatus = 'pending' | 'approved' | 'rejected' | 'expired'
 
@@ -242,28 +242,15 @@ export default function Consent() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            {lastUpdated ? (
-              <span className="text-xs text-muted-foreground">
-                Updated:{' '}
-                <span className="font-medium">
-                  {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </span>
-            ) : null}
-
-            <Button size="sm" variant="outline" onClick={fetchData}>
-              Refresh
-            </Button>
-          </div>
+          {/* Remove refresh button and last updated */}
         </div>
 
         {/* Stats */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <TiltCard><StatCard label={t('consent.pending')} value={stats.pending} icon={<Clock className="h-4 w-4" />} tone="primary" /></TiltCard>
-          <TiltCard><StatCard label={t('consent.approved')} value={stats.approved} icon={<CheckCircle2 className="h-4 w-4" />} tone="success" /></TiltCard>
-          <TiltCard><StatCard label={t('consent.denied')} value={stats.denied} icon={<Ban className="h-4 w-4" />} tone="danger" /></TiltCard>
-          <TiltCard><StatCard label={t('consent.expired')} value={stats.expired} icon={<AlertTriangle className="h-4 w-4" />} tone="muted" /></TiltCard>
+          <StatCard label={t('consent.pending')} value={stats.pending} icon={<Clock className="h-4 w-4" />} tone="primary" />
+          <StatCard label={t('consent.approved')} value={stats.approved} icon={<CheckCircle2 className="h-4 w-4" />} tone="success" />
+          <StatCard label={t('consent.denied')} value={stats.denied} icon={<Ban className="h-4 w-4" />} tone="danger" />
+          <StatCard label={t('consent.expired')} value={stats.expired} icon={<AlertTriangle className="h-4 w-4" />} tone="muted" />
         </div>
 
         {/* Info */}
@@ -310,8 +297,7 @@ export default function Consent() {
           ) : (
             <div className="grid gap-4">
               {requests.map((r) => (
-                <TiltCard key={r.id}>
-                  <Card className="glass-card hover:border-primary/30 transition-colors">
+                  <Card key={r.id} className="glass-card hover:border-primary/30 transition-colors">
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between gap-3">
                         <CardTitle className="text-base font-semibold text-primary">Request from Doctor</CardTitle>
@@ -379,7 +365,6 @@ export default function Consent() {
                       </div>
                     </CardContent>
                   </Card>
-                </TiltCard>
               ))}
             </div>
           )}
