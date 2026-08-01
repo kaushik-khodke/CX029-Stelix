@@ -7,14 +7,14 @@ import { API_BASE_URL } from '@/lib/api'
 
 export function AdherenceReport() {
     const { user } = useAuth()
-    const [adherenceData, setAdherenceData] = useState<{ 
-        logs: any[], 
-        stats: { 
-            total: number, 
-            taken: number, 
-            missed: number, 
-            adherence_pct: number 
-        } 
+    const [adherenceData, setAdherenceData] = useState<{
+        logs: any[],
+        stats: {
+            total: number,
+            taken: number,
+            missed: number,
+            adherence_pct: number
+        }
     } | null>(null)
     const [loading, setLoading] = useState(false)
 
@@ -128,7 +128,7 @@ export function AdherenceReport() {
                     </Card>
                 </div>
             ) : (
-                <div className="bg-white/50 border border-slate-100 p-8 rounded-2xl text-center text-slate-400">
+                <div className="bg-white/50 dark:bg-muted/20 border border-slate-100 dark:border-border/50 p-8 rounded-2xl text-center text-slate-500 dark:text-muted-foreground">
                     No medicine adherence data recorded yet.
                 </div>
             )}

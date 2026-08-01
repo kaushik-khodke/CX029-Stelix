@@ -1,15 +1,14 @@
-import { useState, useMemo, useEffect } from "react";
+const fs = require('fs');
+
+const navPath = 'frontend/src/components/layout/Navbar.tsx';
+let content = fs.readFileSync(navPath, 'utf8');
+
+// I will just replace the entire content of Navbar.tsx
+const newContent = `import { useState, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
-
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/Input";
-import { Separator } from "@/components/ui/separator";
-import { Command as CommandIcon } from "lucide-react";
-import { useConsentsCount } from "@/hooks/useConsentsCount";
-
-import { ThemeToggle } from "./ThemeToggle";
-import { Button } from "../ui/Button";
+import { useAuth } from "@/contexts/AuthContext";
+import { ThemeToggle } from "../ui/ThemeToggle";
+import { Button } from "../ui/button";
 import { cn } from "@/lib/utils";
 import {
   Menu,
@@ -35,8 +34,9 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "../ui/avatar";
-import { Badge } from "../ui/Badge";
-import { LanguageSwitcher } from "@/components/features/LanguageSwitcher";
+import { Badge } from "../ui/badge";
+import { CommandPalette } from "../ui/CommandPalette";
+import { LanguageSwitcher } from "../ui/LanguageSwitcher";
 import { 
   Sidebar, 
   SidebarContent, 
@@ -48,7 +48,6 @@ import {
   SidebarMenuItem, 
   SidebarMenuButton,
   SidebarFooter,
-  SidebarRail,
   useSidebar,
   SidebarTrigger
 } from "@/components/ui/sidebar";
@@ -66,12 +65,12 @@ function SidebarNavLink({ item, active }: { item: NavLinkItem, active: boolean }
     <SidebarMenuItem>
       <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
         <Link to={item.to} className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-2 overflow-hidden">
-            <div className="shrink-0">{item.icon}</div>
-            <span className="truncate group-data-[collapsible=icon]:hidden">{item.label}</span>
+          <div className="flex items-center gap-2">
+            {item.icon}
+            <span>{item.label}</span>
           </div>
           {typeof item.badge === "number" && item.badge > 0 && (
-            <Badge variant="secondary" className="group-data-[collapsible=icon]:hidden shrink-0 bg-teal-500/15 text-teal-600 dark:text-teal-400 font-bold border border-teal-500/30">
+            <Badge variant="secondary" className="bg-teal-500/15 text-teal-600 dark:text-teal-400 font-bold border border-teal-500/30">
               {item.badge}
             </Badge>
           )}
@@ -82,8 +81,7 @@ function SidebarNavLink({ item, active }: { item: NavLinkItem, active: boolean }
 }
 
 export function Navbar() {
-  const { user, profile, role, signOut } = useAuth();
-  const { pendingCount: pendingConsents } = useConsentsCount();
+  const { user, profile, role, pendingConsents, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const pathname = location.pathname;
@@ -93,9 +91,8 @@ export function Navbar() {
   if (pathname === '/login' || pathname === '/signup' || pathname === '/') return null;
 
   // Derived Values
-  const profileAny = profile as any;
-  const displayName = profileAny?.firstName || profileAny?.first_name 
-    ? `${profileAny.firstName || profileAny.first_name} ${profileAny.lastName || profileAny.last_name || ''}`.trim() 
+  const displayName = profile?.first_name 
+    ? \`\${profile.first_name} \${profile.last_name || ''}\`.trim() 
     : user?.email?.split('@')[0] || 'User';
 
   const roleLabel = role === 'doctor' ? 'Healthcare Provider' 
@@ -143,10 +140,17 @@ export function Navbar() {
               : patientLinks;
 
   const cmdItems = [
-    { label: "Dashboard", to: dashboardHref },
+    {
+      id: "dashboard",
+      title: "Dashboard",
+      icon: <LayoutDashboard className="h-4 w-4" />,
+      onSelect: () => navigate(dashboardHref),
+    },
     ...links.map(l => ({
-      label: l.label,
-      to: l.to
+      id: l.to,
+      title: l.label,
+      icon: l.icon,
+      onSelect: () => navigate(l.to),
     }))
   ];
 
@@ -195,8 +199,8 @@ export function Navbar() {
 
       {/* SHADCN SIDEBAR */}
       <Sidebar variant="sidebar" collapsible="icon">
-        <SidebarHeader className="h-16 flex flex-row items-center justify-between border-b px-4 group-data-[collapsible=icon]:!px-0 group-data-[collapsible=icon]:justify-center">
-          <button onClick={() => toggleSidebar()} className="flex items-center gap-3 overflow-hidden group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:w-full hover:opacity-80 transition-opacity text-left">
+        <SidebarHeader className="h-16 flex items-center border-b justify-center px-4">
+          <Link to="/" className="flex items-center gap-3 w-full overflow-hidden">
             <div className="relative shrink-0">
               <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-600 via-teal-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-primary/25">
                 <Activity className="w-5 h-5 text-white" />
@@ -207,8 +211,7 @@ export function Navbar() {
                 MyHealth<span className="opacity-80 font-bold text-teal-600 dark:text-teal-400">Chain</span>
               </div>
             </div>
-          </button>
-          <SidebarTrigger className="group-data-[collapsible=icon]:hidden" />
+          </Link>
         </SidebarHeader>
 
         <SidebarContent>
@@ -272,91 +275,13 @@ export function Navbar() {
             )}
           </div>
         </SidebarFooter>
-        <SidebarRail />
       </Sidebar>
 
       <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} items={cmdItems} />
     </>
   );
 }
+`;
 
-
-function CommandPalette({
-  open,
-  onOpenChange,
-  items,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  items: Array<{ label: string; hint?: string; to: string }>;
-}) {
-  const navigate = useNavigate();
-  const [q, setQ] = useState("");
-
-  const filtered = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    if (!s) return items;
-    return items.filter(
-      (i) => i.label.toLowerCase().includes(s) || i.to.toLowerCase().includes(s) || (i.hint ?? "").toLowerCase().includes(s)
-    );
-  }, [q, items]);
-
-  // Reset search when opening/closing (UX)
-  useEffect(() => {
-    if (!open) setQ("");
-  }, [open]);
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px] p-0 overflow-hidden">
-        <DialogHeader className="px-4 pt-4 pb-2">
-          <DialogTitle className="flex items-center gap-2">
-            <CommandIcon className="h-5 w-5" />
-            Quick Search
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="px-4 pb-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search pages (e.g., consent, records, scan)"
-              className="pl-9"
-              autoFocus
-            />
-          </div>
-        </div>
-
-        <Separator />
-
-        <div className="max-h-[320px] overflow-auto p-2">
-          {filtered.length === 0 ? (
-            <div className="p-4 text-sm text-muted-foreground">No results.</div>
-          ) : (
-            filtered.map((i) => (
-              <button
-                key={i.to}
-                onClick={() => {
-                  onOpenChange(false);
-                  navigate(i.to);
-                }}
-                className="w-full text-left flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-muted/60 transition-colors"
-              >
-                <span className="font-medium">{i.label}</span>
-                <span className="text-xs text-muted-foreground">{i.hint ?? i.to}</span>
-              </button>
-            ))
-          )}
-        </div>
-
-        <div className="px-4 py-3 bg-muted/30 text-xs text-muted-foreground flex items-center justify-between">
-          <span>Tip: Use Ctrl/Γîÿ + K and Enter (click works too).</span>
-          <span className="font-mono">Esc</span>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
+fs.writeFileSync(navPath, newContent, 'utf8');
+console.log('Navbar rewritten successfully');

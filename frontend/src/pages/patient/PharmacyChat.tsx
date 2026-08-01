@@ -284,7 +284,7 @@ export function PharmacyChat() {
             <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="w-full max-w-4xl mb-6 flex items-center justify-between"
+                className="w-full mb-6 flex items-center justify-between"
             >
                 <div className="flex items-center gap-4">
                     <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-500 flex items-center justify-center shadow-lg">
@@ -307,7 +307,7 @@ export function PharmacyChat() {
                 )}
             </motion.div>
 
-            <Card className="w-full max-w-4xl h-[75vh] flex flex-col shadow-2xl shadow-indigo-100/50 rounded-[2rem] overflow-hidden border-indigo-100/50 bg-white/80 backdrop-blur-xl relative">
+            <Card className="w-full h-[calc(100vh-10rem)] flex flex-col shadow-2xl shadow-indigo-100/50 dark:shadow-none rounded-[2rem] overflow-hidden border-indigo-100/50 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl relative">
                 <AnimatePresence>
                     {isListening && (
                         <motion.div className="absolute inset-0 z-50 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
@@ -329,12 +329,12 @@ export function PharmacyChat() {
                             <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-6">
                                 <Pill className="w-10 h-10 text-indigo-500" />
                             </div>
-                            <h2 className="text-xl font-semibold text-slate-800 mb-6">How can I assist you with your medications?</h2>
+                            <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-6">How can I assist you with your medications?</h2>
                             <div className="grid grid-cols-2 gap-3 w-full max-w-lg">
                                 {quickActions.map((action, i) => (
-                                    <button key={i} onClick={() => handleSendMessage(action.text)} className="p-4 rounded-2xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all text-left group">
+                                    <button key={i} onClick={() => handleSendMessage(action.text)} className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-indigo-200 dark:hover:border-indigo-500/50 hover:bg-indigo-50/30 dark:hover:bg-indigo-500/10 transition-all text-left group">
                                         <span className="text-xl mb-1 block">{action.icon}</span>
-                                        <span className="text-sm font-medium text-slate-700 group-hover:text-indigo-700">{action.text}</span>
+                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-indigo-700 dark:group-hover:text-indigo-400">{action.text}</span>
                                     </button>
                                 ))}
                             </div>
