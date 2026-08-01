@@ -3,3 +3,5 @@
 .wwebjs_cache/
 node_modules/
 *.log
+chrome/
+.env
