@@ -48,12 +48,12 @@ url_chars.txt
 *.csv
 cloudflared.exe
 
-# Frontend logs
-frontend/build_error.txt
-frontend/dev_output.txt
-frontend/error.log
-frontend/lint_errors.txt
-frontend/ts_errors.txt
-frontend/tunnel_urls.json
+# Debug outputs & temporary artifacts
+*_out.txt
+debug_*.json
+models_*.txt
+*_debug.log
+ts_error.txt
+build-out*.txt
 
 env
