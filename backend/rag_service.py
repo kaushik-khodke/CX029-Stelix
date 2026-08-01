@@ -169,34 +169,59 @@ class RAGService:
             print(f"❌ Document Processing Error: {e}")
             raise
     
+    def _get_candidate_patient_ids(self, user_id: str) -> List[str]:
+        candidate_ids = list(set([user_id])) if user_id else []
+        if not user_id:
+            return candidate_ids
+        try:
+            # Query patients table to find both patients.id and patients.user_id
+            p_res = self.supabase.table("patients")\
+                .select("id, user_id")\
+                .or_(f"id.eq.{user_id},user_id.eq.{user_id}")\
+                .execute()
+            if p_res.data:
+                for row in p_res.data:
+                    if row.get("id"):
+                        candidate_ids.append(str(row["id"]))
+                    if row.get("user_id"):
+                        candidate_ids.append(str(row["user_id"]))
+        except Exception as e:
+            print(f"⚠️ Could not resolve candidate IDs for {user_id}: {e}")
+        return list(set(candidate_ids))
+
     async def get_patient_records(self, user_id: str) -> List[str]:
         """
         Get all text records for a patient
         """
         try:
-            print(f"🔍 Fetching chunks for user: {user_id}")
+            candidate_ids = self._get_candidate_patient_ids(user_id)
+            print(f"🔍 Fetching chunks for candidate IDs: {candidate_ids}")
+            
             response = self.supabase.table('document_chunks')\
                 .select('content')\
-                .eq('patient_id', user_id)\
+                .in_('patient_id', candidate_ids)\
                 .execute()
             
             if response.data:
-                print(f"✅ Found {len(response.data)} chunks")
-                return [item['content'] for item in response.data if item.get('content')]
+                contents = [item['content'] for item in response.data if item.get('content')]
+                if contents:
+                    print(f"✅ Found {len(contents)} chunks in document_chunks")
+                    return contents
             
-            print("⚠️ No chunks found, trying records fallback...")
+            print("⚠️ No chunks found in document_chunks, checking records table fallback...")
             
             # Fallback to records.extracted_text
             fallback = self.supabase.table('records')\
                 .select('extracted_text')\
-                .eq('patient_id', user_id)\
+                .in_('patient_id', candidate_ids)\
                 .execute()
             
             if fallback.data:
-                print(f"✅ Found {len(fallback.data)} records in fallback")
-                return [r['extracted_text'] for r in fallback.data if r.get('extracted_text')]
+                records = [r['extracted_text'] for r in fallback.data if r.get('extracted_text')]
+                print(f"✅ Found {len(records)} records in fallback")
+                return records
             
-            print("❌ No records found at all")
+            print("❌ No records found at all for candidate IDs")
             return []
             
         except Exception as e:
@@ -205,9 +230,10 @@ class RAGService:
 
     async def get_patient_records_with_dates(self, user_id: str) -> List[dict]:
         try:
+            candidate_ids = self._get_candidate_patient_ids(user_id)
             response = self.supabase.table('records')\
                 .select('created_at, extracted_text')\
-                .eq('patient_id', user_id)\
+                .in_('patient_id', candidate_ids)\
                 .order('created_at', desc=False)\
                 .execute()
             

@@ -1511,7 +1511,6 @@ async def pharmacy_chat(request: PharmacyChatRequest):
         return ChatResponse(success=False, response=fallbacks.get(lang, fallbacks["en"]), error=error_msg)
 
 
-@app.post("/health_trends")
 @app.post("/patient/smart-insights")
 async def get_smart_insights(request: SmartInsightsRequest):
     """
@@ -1651,6 +1650,7 @@ Rules:
             "daily_tip": "Start small — even a 10-minute walk and 6 glasses of water today can make a big difference!"
         }}
 
+@app.post("/health_trends")
 @app.post("/patient/health-trends")
 async def get_health_trends(request: HealthAnalysisRequest):
     """
@@ -1998,7 +1998,8 @@ async def process_document(request: DocumentProcessRequest):
 @app.post("/analyze_health")
 async def analyze_health(request: HealthAnalysisRequest):
     """
-    Analyze patient health risk using ML, synced with active Triage data if available.
+    Analyze patient health risk using ML and Gemini, fully aggregated with patients,
+    records, triage queue, health routines, and active medications.
     """
     try:
         sb = _get_sb()
@@ -2006,40 +2007,76 @@ async def analyze_health(request: HealthAnalysisRequest):
         patient_db_id = get_patient_db_id(request.user_id)
         auth_uid = get_auth_user_id(patient_db_id) if patient_db_id else request.user_id
         
-        print(f"🔍 Analyzing health for patient_db_id: {patient_db_id}, auth_uid: {auth_uid}")
+        print(f"🔍 [AI Health Insight Audit] Incoming user_id: {request.user_id} -> patient_db_id: {patient_db_id}, auth_uid: {auth_uid}")
 
-        # 2. Fetch medical records for historical context
-        text_records = await rag_service.get_patient_records(auth_uid)
-        
-        # 3. Check for ACTIVE Triage data (status 'waiting' or 'in_treatment' - latest preferred)
-        active_triage = None
+        candidate_ids = list(set(filter(None, [patient_db_id, auth_uid, request.user_id])))
+
+        # 2. Query Patient Demographics from 'patients' table
+        patient_info = {}
+        calc_age = None
+        patient_res = None
         if patient_db_id:
+            patient_res = sb.table("patients").select("*").eq("id", patient_db_id).maybe_single().execute()
+        if not patient_res or not patient_res.data:
+            patient_res = sb.table("patients").select("*").eq("user_id", auth_uid).maybe_single().execute()
+            
+        if patient_res and patient_res.data:
+            patient_info = patient_res.data
+            dob_str = patient_info.get("date_of_birth")
+            if dob_str:
+                try:
+                    from datetime import datetime
+                    dob = datetime.strptime(str(dob_str), "%Y-%m-%d")
+                    today = datetime.now()
+                    calc_age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+                except Exception as e:
+                    print(f"⚠️ DOB parse error: {e}")
+
+        structured_vitals = {
+            "age": calc_age,
+            "blood_group": patient_info.get("blood_group"),
+            "full_name": patient_info.get("full_name")
+        }
+
+        # 3. Query Active / Recent Triage Entry
+        active_triage = None
+        for pid in candidate_ids:
             triage_res = sb.table("triage_queue") \
-                .select("priority_level, ai_reasoning, vitals, status") \
-                .eq("patient_id", patient_db_id) \
+                .select("priority_level, ai_reasoning, vitals, symptoms, status, arrival_time") \
+                .eq("patient_id", pid) \
                 .order("arrival_time", desc=True) \
                 .limit(1) \
                 .execute()
             if triage_res.data:
                 active_triage = triage_res.data[0]
-        
-        # 4. Run Core ML analysis on records
-        analysis_result = analyze_risk(text_records)
-        print(f"🔬 ML/Regex Result: {analysis_result}")
-        
-        # 4.5 Fetch last 7 days lifestyle routines
+                break
+
+        if active_triage and active_triage.get("vitals"):
+            tv = active_triage["vitals"]
+            if isinstance(tv, dict):
+                if tv.get("bp"): structured_vitals["bp"] = tv.get("bp")
+                if tv.get("hr"): structured_vitals["heart_rate"] = tv.get("hr")
+                if tv.get("sugar"): structured_vitals["sugar"] = tv.get("sugar")
+                if tv.get("weight"): structured_vitals["weight"] = tv.get("weight")
+                if tv.get("height"): structured_vitals["height"] = tv.get("height")
+
+        # 4. Query Health Routines (last 7 days logged vitals & lifestyle)
         from datetime import datetime, timedelta
         week_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
-        routines_res = sb.table("health_routines") \
-            .select("metric_type, value, logged_at") \
-            .eq("user_id", auth_uid) \
-            .gte("logged_at", week_ago) \
-            .execute()
         
-        routines = routines_res.data or []
-        hydration_logs = [int(r["value"]) for r in routines if r["metric_type"] == "hydration" and r["value"].isdigit()]
-        steps_logs     = [int(r["value"]) for r in routines if r["metric_type"] == "steps" and r["value"].isdigit()]
-        sleep_logs     = [float(r["value"]) for r in routines if r["metric_type"] == "sleep"]
+        routines = []
+        for uid in candidate_ids:
+            routines_res = sb.table("health_routines") \
+                .select("metric_type, value, unit, logged_at") \
+                .eq("user_id", uid) \
+                .gte("logged_at", week_ago) \
+                .execute()
+            if routines_res.data:
+                routines.extend(routines_res.data)
+                
+        hydration_logs = [int(r["value"]) for r in routines if r["metric_type"] == "hydration" and str(r["value"]).isdigit()]
+        steps_logs     = [int(r["value"]) for r in routines if r["metric_type"] == "steps" and str(r["value"]).isdigit()]
+        sleep_logs     = [float(r["value"]) for r in routines if r["metric_type"] == "sleep" if r.get("value")]
         
         avg_water = round(sum(hydration_logs) / max(len(hydration_logs), 1), 1) if hydration_logs else None
         avg_steps = round(sum(steps_logs) / max(len(steps_logs), 1)) if steps_logs else None
@@ -2052,7 +2089,44 @@ async def analyze_health(request: HealthAnalysisRequest):
         - Sleep: {avg_sleep if avg_sleep else 'No data'} hours/night
         """
 
-        # 5. SYNC LOGIC: If active triage exists and is critical, escalate risk_level
+        # Check routines for direct vitals if missing
+        bp_routines = [r["value"] for r in routines if r["metric_type"] == "blood_pressure" and "/" in str(r["value"])]
+        sugar_routines = [int(r["value"]) for r in routines if r["metric_type"] == "blood_sugar" and str(r["value"]).isdigit()]
+        if bp_routines and not structured_vitals.get("bp"):
+            structured_vitals["bp"] = bp_routines[0]
+        if sugar_routines and not structured_vitals.get("sugar"):
+            structured_vitals["sugar"] = sugar_routines[0]
+
+        # 5. Query Active Orders / Medicines
+        active_meds = []
+        try:
+            for pid in candidate_ids:
+                orders_res = sb.table("orders") \
+                    .select("id, status, created_at, order_items(dosage_text, frequency_per_day, medicines(name, strength))") \
+                    .eq("patient_id", pid) \
+                    .limit(5) \
+                    .execute()
+                if orders_res.data:
+                    for o in orders_res.data:
+                        items = o.get("order_items", []) or []
+                        for item in items:
+                            med = item.get("medicines", {}) or {}
+                            med_name = med.get("name")
+                            if med_name:
+                                active_meds.append(f"{med_name} ({med.get('strength', '')}) - {item.get('dosage_text', 'As directed')}")
+        except Exception as me:
+            print(f"⚠️ Could not fetch active meds: {me}")
+
+        # 6. Fetch Medical Records (RAG)
+        text_records = await rag_service.get_patient_records(request.user_id)
+        
+        print(f"📊 [Data Pipeline Summary] Records found: {len(text_records)}, Triage: {bool(active_triage)}, Meds: {len(active_meds)}, Demographics: {bool(patient_info)}")
+
+        # 7. Run Core ML analysis on aggregated records and structured vitals
+        analysis_result = analyze_risk(text_records, structured_vitals)
+        print(f"🔬 ML/Regex Result: {analysis_result}")
+
+        # 8. SYNC LOGIC: Escalation based on Triage
         triage_priority = active_triage.get("priority_level") if active_triage else None
         if triage_priority in ["RED", "ORANGE"]:
             analysis_result['risk_level'] = "Critical"
@@ -2060,55 +2134,65 @@ async def analyze_health(request: HealthAnalysisRequest):
             if analysis_result['risk_level'] == "Healthy":
                 analysis_result['risk_level'] = "Warning"
 
-        # 6. Generate Comprehensive Advice using Gemini, including Triage context
+        # Prepare display vitals
         vitals = analysis_result['vitals_detected']
-        
-        # If triage exists, prefer its fresh vitals over historical ones for the display
-        if active_triage and active_triage.get("vitals"):
-            tv = active_triage["vitals"]
-            # Extract BP if exists
-            if tv.get('bp') and '/' in tv.get('bp'):
-                vitals['bp'] = tv.get('bp') # Use the string formatted BP
-            vitals['heart_rate'] = tv.get('hr') or vitals.get('heart_rate')
-
         vitals_str = ", ".join([f"{k}: {v}" for k, v in vitals.items() if v is not None])
-        triage_context = f"\nACTIVE EMERGENCY STATUS: Level {triage_priority} - {active_triage.get('ai_reasoning')}" if active_triage else ""
+        
+        triage_context = ""
+        if active_triage:
+            triage_context = f"\nACTIVE EMERGENCY STATUS: Priority Level {triage_priority} - {active_triage.get('ai_reasoning') or 'Emergency triage active'}. Symptoms: {active_triage.get('symptoms', 'None reported')}."
+
+        meds_context = f"Active Prescriptions/Medications: {', '.join(active_meds)}" if active_meds else "No active prescriptions on file."
+
+        records_context = "\n".join(text_records) if text_records else "No additional uploaded medical documents."
 
         prompt = f"""
-        You are a smart medical AI assistant providing a Clinical Readout.
-        Patient Vitals (Current/Historical): {vitals_str}
-        Current Risk Level (Escalated via Triage if applicable): {analysis_result['risk_level']}
-        {triage_context}
-        Lifestyle Context: {lifestyle_context}
-        Patient Records: {text_records}
-
+        You are an expert clinical AI assistant producing an AI Health Insight report.
         
-        Task:
-        1. Extract ANY missing vitals from the Records or Triage context.
-        2. Provide a concise, beautifully formatted health advice summary.
-           - Factor in why the patient is currently in a '{analysis_result['risk_level']}' state.
-           - If they are in active triage, acknowledge the emergency and provide appropriate stabilization advice.
-           - **FORMATTING RULES (STRICT):**
-             * **NO PARAGRAPHS**. Write everything as bullet points.
-             * Use **Markdown Headings** (###) for sections.
-             * Use **Bold** for key extracted facts.
-        3. Provide 3 specific, actionable tips.
-        4. Formulate a short follow-up question.
+        PATIENT PROFILE:
+        - Name: {patient_info.get('full_name', 'Patient')}
+        - Biological Age: {vitals.get('age') or 'Not recorded'}
+        - Blood Group: {vitals.get('blood_group') or 'Not recorded'}
+        
+        CURRENT CLINICAL STATUS:
+        - Risk Level: {analysis_result['risk_level']}
+        - Patient Vitals: {vitals_str if vitals_str else 'Monitoring vitals'}
+        {triage_context}
+        
+        MEDICATIONS & HISTORY:
+        - {meds_context}
+        - Historical Records / Extracted Documents:
+        {records_context[:2500]}
+        
+        LIFESTYLE DATA:
+        {lifestyle_context}
+        
+        TASK:
+        1. Provide a comprehensive clinical readout and health advice.
+           - DO NOT state "Historical patient records are empty" if records, vitals, triage entries, or prescriptions exist above.
+           - Explain the clinical reasoning for the '{analysis_result['risk_level']}' risk level.
+           - Highlight key vitals, risk factors, and medication context.
+           - **STRICT FORMATTING RULES:**
+             * Write in markdown bullet points. NO LONG UNFORMATTED PARAGRAPHS.
+             * Use **Markdown Headings** (###) for sections (e.g. ### CLINICAL ASSESSMENT, ### RISK FACTORS, ### STABILIZATION & ADVICE).
+             * Use **Bold** for key extracted clinical terms.
+        2. Provide 3 specific, actionable health tips.
+        3. Provide 1 relevant follow-up question.
         
         Output purely in JSON format:
         {{
             "analysis_text": "Markdown formatted advice here...",
             "tips": ["Tip 1", "Tip 2", "Tip 3"],
-            "follow_up_topic": "Question to ask user",
+            "follow_up_topic": "Follow-up question for the patient",
             "extracted_vitals": {{
                 "bp": "Found BP", "sugar": "Found Sugar", "heart_rate": "Found HR",
                 "weight": "Found Weight", "age": "Found Age", "blood_group": "Found Blood Group"
             }}
         }}
         """
-                
+
         try:
-            print("🤖 Sending prompt to Gemini (MODEL_TEXT_FAST)...")
+            print("🤖 Sending comprehensive prompt to Gemini...")
             gemini_response = await safe_generate_content(
                 contents=prompt,
                 task_type="text_fast"
@@ -2117,10 +2201,8 @@ async def analyze_health(request: HealthAnalysisRequest):
             import json
             ai_insights = json.loads(text_resp)
             
-            # Update vitals if gemini found more
             gemini_vitals = ai_insights.get("extracted_vitals", {})
             def update_if_missing(key, val):
-                # Only update if current is None or explicitly invalid
                 current = analysis_result['vitals_detected'].get(key)
                 if (current is None or current == "null" or current == "") and val and val != "null":
                     analysis_result['vitals_detected'][key] = val
@@ -2133,11 +2215,11 @@ async def analyze_health(request: HealthAnalysisRequest):
             update_if_missing('blood_group', gemini_vitals.get('blood_group'))
 
         except Exception as e:
-            print(f"⚠️ Gemini Analysis Failed: {e}")
+            print(f"⚠️ Gemini Analysis Fallback Triggered: {e}")
             ai_insights = {
-                "analysis_text": f"### Urgent Clinical Status\n* The patient is in a **{analysis_result['risk_level']}** state.\n* Immediate attention is advised due to active triage indicators.",
-                "tips": ["Follow emergency procedures", "Ensure vitals are monitored", "Keep patient stable"],
-                "follow_up_topic": "How can I assist further?"
+                "analysis_text": f"### Clinical Assessment Summary\n* The patient is currently evaluated at a **{analysis_result['risk_level']}** risk tier.\n* Key monitored vitals: **{vitals_str or 'Vitals under review'}**.\n* Continuous medical monitoring and adherence to prescribed medications are recommended.",
+                "tips": ["Log daily vitals regularly", "Maintain hydration and medication schedule", "Consult your physician for routine evaluation"],
+                "follow_up_topic": "Would you like to review your historical trends?"
             }
 
         return {
@@ -2148,9 +2230,11 @@ async def analyze_health(request: HealthAnalysisRequest):
             "follow_up_prompt": ai_insights["follow_up_topic"],
             "is_emergency": triage_priority in ["RED", "ORANGE", "YELLOW"]
         }
-        
+
     except Exception as e:
-        print(f"❌ Health Analysis Error: {e}")
+        import traceback
+        print("❌ CRITICAL Health Analysis Error:")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/pharmacy/refill-alerts/{patient_id}")
