@@ -238,7 +238,7 @@ export function Navbar() {
                     <Avatar className="h-8 w-8 rounded-lg">
                       <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
                     </Avatar>
-                    <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
+                    <div className="grid flex-1 text-left text-sm leading-tight overflow-hidden group-data-[collapsible=icon]:hidden">
                       <span className="truncate font-semibold">{displayName}</span>
                       <span className="truncate text-xs">{roleLabel}</span>
                     </div>
