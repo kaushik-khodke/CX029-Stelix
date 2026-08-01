@@ -18,6 +18,8 @@ from agents.prescription_agent import PrescriptionAgent
 from payment_service import _create_stripe_checkout
 
 
+from ai_config import safe_generate_content, get_ai_client
+
 class PharmacyAgent(BaseAgent):
     name = "pharmacy_agent"
     description = "Searches medicines, verifies prescriptions, creates and finalises orders, and decrements stock."
@@ -26,8 +28,11 @@ class PharmacyAgent(BaseAgent):
         url = os.getenv("VITE_SUPABASE_URL")
         key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         self.db: Client = create_client(url, key)
-        self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         self.prescription_agent = PrescriptionAgent()
+
+    @property
+    def client(self) -> genai.Client:
+        return get_ai_client()
 
     # ------------------------------------------------------------------
     # Helpers
@@ -106,11 +111,7 @@ class PharmacyAgent(BaseAgent):
         {combined_text}
         """
         try:
-            response = await asyncio.to_thread(
-                self.client.models.generate_content,
-                model="gemini-2.5-flash",
-                contents=prompt
-            )
+            response = await safe_generate_content(prompt, task_type="text_fast", client=self.client)
             raw = response.text.strip()
             if raw.startswith("```json"):
                 raw = raw[7:-3].strip()
@@ -144,11 +145,7 @@ class PharmacyAgent(BaseAgent):
         JSON OUTPUT MUST STRICTLY BE A VALID ARRAY e.g. [{"medicine_name": "Panadol", "qty": 10, "frequency_per_day": 3, "dosage_text": "after meals"}]
         """
         try:
-            response = await asyncio.to_thread(
-                self.client.models.generate_content,
-                model="gemini-2.5-flash",
-                contents=prompt
-            )
+            response = await safe_generate_content(prompt, task_type="text_fast", client=self.client)
             raw = response.text.strip()
             if raw.startswith("```json"):
                 raw = raw[7:-3].strip()

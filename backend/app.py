@@ -13,7 +13,8 @@ from langfuse.decorators import observe
 from dotenv import load_dotenv
 
 # Load .env file from the parent directory
-load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'), override=True)
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=True)
 
 app = Flask(__name__)
 CORS(app)
@@ -29,8 +30,9 @@ MY_SECRET_KEY = os.getenv("GEMINI_API_KEY")
 SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")        # e.g. https://xyz.supabase.co
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")   # ⚠️ Use SERVICE_ROLE key to allow writing
 
+from ai_config import get_ai_client, safe_generate_content
+
 # 2. INITIALIZE CLIENTS
-client = genai.Client(api_key=MY_SECRET_KEY)
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ==========================================
@@ -102,11 +104,11 @@ def chat():
     """
 
     try:
-        print("🤖 Chat Assistant (Using gemini-2.5-flash)")
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=system_prompt + "\n\nUser Query: " + user_message
-        )
+        print("🤖 Chat Assistant (Using MODEL_TEXT_FAST)")
+        response = asyncio.run(safe_generate_content(
+            contents=system_prompt + "\n\nUser Query: " + user_message,
+            task_type="text_fast"
+        ))
         return jsonify({ "success": True, "response": response.text })
     except Exception as e:
         print(f"❌ Gemini Error: {e}")
@@ -163,13 +165,13 @@ def process_document():
             print(f"👁️ Extracting text using Gemini Vision (MIME: {mime_type})...")
             prompt = "Extract all the text from this document. If there is handwriting, transcribe it accurately. If there are tables or forms, structure them clearly as text. Return ONLY the extracted text. If no text is found, return an empty string."
             
-            gen_response = client.models.generate_content(
-                model='gemini-2.5-flash',
+            gen_response = asyncio.run(safe_generate_content(
                 contents=[
                     prompt,
                     types.Part.from_bytes(data=file_bytes, mime_type=mime_type)
-                ]
-            )
+                ],
+                task_type="text_fast"
+            ))
             full_text = gen_response.text
         except Exception as ai_e:
             print(f"❌ Gemini Extraction Error: {ai_e}")

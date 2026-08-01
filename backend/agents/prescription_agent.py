@@ -16,6 +16,8 @@ from langfuse.decorators import observe
 from agents.base_agent import BaseAgent, AgentResult
 
 
+from ai_config import safe_generate_content, get_ai_client
+
 class PrescriptionAgent(BaseAgent):
     name = "prescription_agent"
     description = "Verifies if a patient has a valid prescription for a medicine and extracts dosage/timing instructions."
@@ -24,7 +26,10 @@ class PrescriptionAgent(BaseAgent):
         url = os.getenv("VITE_SUPABASE_URL")
         key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         self.db: Client = create_client(url, key)
-        self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+    @property
+    def client(self) -> genai.Client:
+        return get_ai_client()
 
     def _resolve_patient_id(self, user_id: str) -> Optional[str]:
         res = (
@@ -100,11 +105,7 @@ class PrescriptionAgent(BaseAgent):
         {combined_text}
         """
         try:
-            response = await asyncio.to_thread(
-                self.client.models.generate_content,
-                model="gemini-2.5-flash",
-                contents=prompt
-            )
+            response = await safe_generate_content(prompt, task_type="text_fast", client=self.client)
             raw = response.text.strip()
             if raw.startswith("```json"):
                 raw = raw[7:-3].strip()

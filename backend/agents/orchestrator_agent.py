@@ -142,11 +142,12 @@ RULES:
 
 
 
+from ai_config import get_ai_client, MODEL_TOOL_AGENT, MODEL_TOOL_AGENT_FALLBACK
+
 class OrchestratorAgent:
     MAX_HISTORY_TURNS = 10
 
     def __init__(self):
-        self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         self.pharmacy     = PharmacyAgent()
         self.refill       = RefillAgent()
         self.notification = NotificationAgent()
@@ -155,6 +156,10 @@ class OrchestratorAgent:
         self.safety       = SafetyAgent()
         self.doctor       = DoctorAgent()
         self._sessions: Dict[str, List[Dict]] = {}
+
+    @property
+    def client(self) -> genai.Client:
+        return get_ai_client()
 
     def _get_history(self, user_id: str) -> List[Dict]:
         return self._sessions.get(user_id, [])
@@ -195,36 +200,45 @@ class OrchestratorAgent:
         if not safety_check.success:
             return {"success": False, "response": safety_check.message, "agents_used": ["safety_agent"], "steps": []}
 
-        # Format message content including history
-        history = self._get_history(user_id)
-        chat_contents = []
+        # Format message content including recent history (last 6 items for high speed)
+        history = self._get_history(user_id)[-6:]
+        history_contents = []
         for h in history:
-            chat_contents.append(types.Content(role=h["role"], parts=[types.Part.from_text(text=h["content"])]))
+            history_contents.append(types.Content(role=h["role"], parts=[types.Part.from_text(text=h["content"])]))
         
         user_prompt = f"User role: {role}\nUser ID: {user_id}\nLanguage: {language}\nUser message: {message}"
-        chat_contents.append(types.Content(role="user", parts=[types.Part.from_text(text=user_prompt)]))
 
         agents_used = []
         steps = []
         
         try:
-            # First move: Model might call tools or give thoughts
-            response = await asyncio.to_thread(
-                self.client.models.generate_content,
-                model="gemini-2.5-flash",
-                contents=chat_contents,
+            chat = self.client.chats.create(
+                model=MODEL_TOOL_AGENT,
                 config=types.GenerateContentConfig(
                     tools=TOOLS,
                     system_instruction=SYSTEM_PROMPT
-                )
+                ),
+                history=history_contents
             )
 
+            # Send initial message with retry for 429 rate limits
+            response = None
+            for attempt in range(3):
+                try:
+                    response = await asyncio.to_thread(chat.send_message, user_prompt)
+                    break
+                except Exception as e:
+                    if ("429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)) and attempt < 2:
+                        print(f"⏳ Rate limit hit, retrying in 2 seconds (attempt {attempt+1})...")
+                        await asyncio.sleep(2)
+                    else:
+                        raise e
+
             for _ in range(6): # max tool iterations
-                if not response.candidates or not response.candidates[0].content.parts:
+                if not response or not response.candidates or not response.candidates[0].content.parts:
                     break
                 
                 parts = response.candidates[0].content.parts
-                chat_contents.append(response.candidates[0].content) # Add model's turn to conversation
                 
                 tool_calls = [p.function_call for p in parts if p.function_call]
                 
@@ -251,17 +265,18 @@ class OrchestratorAgent:
                         )
                     )
                 
-                # Send tool responses back to model
-                chat_contents.append(types.Content(role="tool", parts=tool_responses))
-                response = await asyncio.to_thread(
-                    self.client.models.generate_content,
-                    model="gemini-2.5-flash",
-                    contents=chat_contents,
-                    config=types.GenerateContentConfig(
-                        tools=TOOLS,
-                        system_instruction=SYSTEM_PROMPT
-                    )
-                )
+                # Send tool responses back to model as role="tool" with retry
+                tool_content = types.Content(role="tool", parts=tool_responses)
+                for attempt in range(3):
+                    try:
+                        response = await asyncio.to_thread(chat.send_message, tool_content)
+                        break
+                    except Exception as e:
+                        if ("429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)) and attempt < 2:
+                            print(f"⏳ Tool turn rate limit hit, retrying in 2 seconds (attempt {attempt+1})...")
+                            await asyncio.sleep(2)
+                        else:
+                            raise e
 
             final_text = response.text or "I couldn't process that request."
             self._append_history(user_id, "user", message)
@@ -279,8 +294,8 @@ class OrchestratorAgent:
             import traceback; traceback.print_exc()
             error_str = str(e)
             # Provide user-friendly messages for common errors
-            if "API_KEY_INVALID" in error_str or "invalid_api_key" in error_str.lower() or "401" in error_str:
-                user_msg = "⚠️ AI service is misconfigured (invalid API key). Please contact support."
+            if "suspended" in error_str.lower() or "PERMISSION_DENIED" in error_str or "API_KEY_INVALID" in error_str or "invalid_api_key" in error_str.lower() or "401" in error_str or "403" in error_str:
+                user_msg = "⚠️ The Gemini API key has been suspended or invalidated in Google AI Studio. Please generate a fresh key at https://aistudio.google.com/app/apikey and update your .env file."
             elif "429" in error_str or "RESOURCE_EXHAUSTED" in error_str or "quota" in error_str.lower():
                 user_msg = "⏳ AI service is busy. Please wait a moment and try again."
             elif "UNAVAILABLE" in error_str or "503" in error_str or "ConnectionError" in error_str:

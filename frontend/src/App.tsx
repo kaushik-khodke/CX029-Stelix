@@ -139,14 +139,7 @@ function App() {
           <main className="pt-16 min-h-screen relative">
             <Routes>
               {/* Public routes */}
-              <Route
-                path="/"
-                element={
-                  <PublicRoute>
-                    <Landing />
-                  </PublicRoute>
-                }
-              />
+              <Route path="/" element={<Landing />} />
               <Route
                 path="/login"
                 element={

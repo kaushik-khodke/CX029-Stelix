@@ -12,8 +12,8 @@ import asyncio
 from dotenv import load_dotenv
 
 # ── Load .env FIRST before anything else reads env vars ──────────────────────
-load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
-load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))  # also load local backend/.env if present
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'), override=True)
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=True)  # also load local backend/.env if present
 
 import stripe
 import sys
@@ -73,8 +73,10 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         content={"detail": exc.errors(), "body": body.decode()},
     )
 
+from ai_config import get_ai_client, safe_generate_content, MODEL_TEXT_FAST, MODEL_TOOL_AGENT
+
 # Initialize Gemini Client
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+client = get_ai_client()
 chat_sessions = {}
 
 try:
@@ -1010,13 +1012,12 @@ async def verify_rx_upload(
             "exactly as written. Include medicine names, dosages, instructions, patient name, "
             "doctor name, and date. Output only the extracted text, nothing else."
         )
-        response = await asyncio.to_thread(
-            client.models.generate_content,
-            model="gemini-2.5-flash",
+        response = await safe_generate_content(
             contents=[
                 extraction_prompt,
                 types.Part.from_bytes(data=contents, mime_type=mime),
-            ]
+            ],
+            task_type="text_fast"
         )
         extracted_text = response.text.strip() if response.text else ""
 
@@ -1533,9 +1534,9 @@ async def get_smart_insights(request: SmartInsightsRequest):
 
         prompt = f"The patient currently has {adherence}% medicine adherence (from {total} recent scheduled doses). Their recent lifestyle habits logged are: {routine_summary}. As a professional and warm AI clinician, write ONE short paragraph (maximum 2 sentences) providing a brilliant, encouraging clinical insight that correlates their medicine adherence with their lifestyle habits. Avoid complex medical jargon. Be supportive and engaging! DO NOT USE asterisks or markdown."
 
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
+        response = await safe_generate_content(
             contents=prompt,
+            task_type="text_fast"
         )
 
         return {"success": True, "insight": response.text}
@@ -1624,9 +1625,9 @@ Rules:
 - daily_tip must reference their specific situation
 - Return ONLY the JSON, nothing else"""
 
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
+        response = safe_generate_content(
             contents=prompt,
+            task_type="text_fast"
         )
 
         raw = response.text.strip()
@@ -1846,10 +1847,10 @@ Language Guidelines:
         
         # Using gemini-2.5-flash as standardized
         try:
-            print("🤖 Health Assistant (Using gemini-2.5-flash)")
-            response = client.models.generate_content(
-                model="gemini-2.5-flash",
+            print("🤖 Health Assistant (Using safe_generate_content - MODEL_TEXT_FAST)")
+            response = await safe_generate_content(
                 contents=system_prompt + "\n\nPatient Message: " + request.message,
+                task_type="text_fast",
                 config=types.GenerateContentConfig(
                     temperature=0.7,
                     max_output_tokens=2048,
@@ -2107,10 +2108,10 @@ async def analyze_health(request: HealthAnalysisRequest):
         """
                 
         try:
-            print("🤖 Sending prompt to Gemini...")
-            gemini_response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt
+            print("🤖 Sending prompt to Gemini (MODEL_TEXT_FAST)...")
+            gemini_response = await safe_generate_content(
+                contents=prompt,
+                task_type="text_fast"
             )
             text_resp = gemini_response.text.replace("```json", "").replace("```", "").strip()
             import json
@@ -2357,10 +2358,9 @@ async def analyze_triage(request: TriageAnalyzeRequest):
         }}
         """
         
-        response = await asyncio.to_thread(
-            client.models.generate_content,
-            model="gemini-2.5-flash",
+        response = await safe_generate_content(
             contents=prompt,
+            task_type="text_fast",
             config=types.GenerateContentConfig(response_mime_type="application/json")
         )
         
