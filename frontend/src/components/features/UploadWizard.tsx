@@ -108,8 +108,10 @@ export function UploadWizard({ open, onClose, onSuccess }: UploadWizardProps) {
         record_date: data.recordDate,
         doctor_name: data.doctorName || null,
         notes: data.notes || null,
+        extracted_text: null,
+        encrypted_metadata: { analyzed: false },
         ipfs_hash: ipfsResult.ipfsHash,
-        ipfs_cid: ipfsResult.ipfsHash,  // ← ADD THIS LINE (same as ipfs_hash)
+        ipfs_cid: ipfsResult.ipfsHash,
 
         file_url: ipfsUrl,
         file_size: file.size,

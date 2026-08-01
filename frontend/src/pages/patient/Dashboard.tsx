@@ -224,7 +224,7 @@ export default function Dashboard() {
       <div className="absolute bottom-0 left-0 w-[45%] h-[50%] rounded-full bg-teal-400/10 blur-3xl -z-10" />
       <div className="absolute inset-0 -z-10 mask-radial-faded bg-background/20" />
 
-      <div className="container mx-auto px-4 py-8 relative">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-8 relative">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}

@@ -18,6 +18,17 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=True)  # a
 
 import stripe
 import sys
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 print(f"--- RENDER STARTUP DIAGNOSTICS ---")
 print(f"Python version: {sys.version}")
@@ -1465,7 +1476,7 @@ async def pharmacy_chat(request: PharmacyChatRequest):
     try:
         from agents.orchestrator_agent import OrchestratorAgent as _OrchestratorAgent
         if not hasattr(pharmacy_chat, "_orchestrator"):
-            pharmacy_chat._orchestrator = _OrchestratorAgent()
+            pharmacy_chat._orchestrator = _orchestrator
 
         print(f"💊 Expert Pharmacy Query (multi-agent): {request.message}")
 
@@ -1932,7 +1943,9 @@ async def clear_chat(request: ChatClearRequest):
         user_id = request.user_id
         if user_id in chat_sessions:
             del chat_sessions[user_id]
-            print(f"🧹 Cleared chat history for user: {user_id}")
+        if hasattr(_orchestrator, "_sessions") and user_id in _orchestrator._sessions:
+            del _orchestrator._sessions[user_id]
+        print(f"🧹 Cleared chat history for user: {user_id}")
         return {"success": True, "message": "Chat history cleared"}
     except Exception as e:
         print(f"❌ Error clearing chat history: {e}")
@@ -1969,6 +1982,11 @@ async def synthesize_voice(request: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/process_document")
+@app.post("/process-document")
+@app.post("/analyze_record")
+@app.post("/analyze-record")
+@app.post("/analyze_document")
+@app.post("/analyze-document")
 async def process_document(request: DocumentProcessRequest):
     """
     Process uploaded medical documents and create embeddings
@@ -1998,6 +2016,9 @@ async def process_document(request: DocumentProcessRequest):
         }
 
 @app.post("/analyze_health")
+@app.post("/analyze-health")
+@app.post("/patient/analyze")
+@app.post("/analyze")
 async def analyze_health(request: HealthAnalysisRequest):
     """
     Analyze patient health risk using ML and Gemini, fully aggregated with patients,

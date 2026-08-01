@@ -20,6 +20,7 @@ import {
   Calendar,
   BrainCircuit,
   Loader2,
+  CheckCircle2,
 } from "lucide-react";
 
 import { TiltCard } from "@/components/ui/TiltCard";
@@ -34,6 +35,9 @@ interface RecordRow {
   file_name?: string | null;
   file_size?: number | null;
   ipfs_hash?: string | null;
+  extracted_text?: string | null;
+  encrypted_metadata?: { analyzed?: boolean } | null;
+  notes?: string | null;
   created_at: string;
 
   // Optional: if you later store Storage paths (recommended)
@@ -156,6 +160,14 @@ export default function Records() {
       const result = await response.json();
 
       if (result.success) {
+        setRecords((prev) =>
+          prev.map((r) =>
+            r.id === record.id
+              ? { ...r, extracted_text: r.extracted_text || "Analyzed", encrypted_metadata: { analyzed: true } }
+              : r
+          )
+        );
+        fetchRecords(true);
         alert(`✅ Analysis Complete! Added ${result.chunks} segments to AI memory.`);
       } else {
         alert("❌ AI Processing Failed: " + (result.error || result.detail || "Unknown error"));
@@ -164,6 +176,7 @@ export default function Records() {
       alert("❌ Could not connect to AI server. Ensure the backend is running.");
     } finally {
       setProcessingId(null);
+      fetchRecords(true);
     }
   };
 
@@ -219,7 +232,7 @@ export default function Records() {
 
   return (
     <div className="min-h-screen relative overflow-hidden font-sans selection:bg-primary/30">
-      <div className="container mx-auto px-4 py-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -321,70 +334,91 @@ export default function Records() {
           </div>
         ) : (
           <div className="space-y-4">
-            {filteredRecords.map((record, index) => (
-              <motion.div
-                key={record.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.03 }}
-              >
-                <Card className="glass-card">
-                  <CardContent className="p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    {/* Left: details */}
-                    <div className="flex items-start gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                        <span className="text-lg">{getRecordIcon(record.record_type)}</span>
-                      </div>
+            {filteredRecords.map((record, index) => {
+              const isAnalyzed = Boolean(
+                record.encrypted_metadata?.analyzed ||
+                (record.extracted_text && record.extracted_text.trim().length > 0)
+              );
 
-                      <div>
-                        <div className="font-semibold text-lg flex items-center gap-2">
-                          {record.title}
-                          {record.ipfs_hash ? (
-                            <span className="text-xs px-2 py-0.5 rounded-full border border-border text-muted-foreground">
-                              🌐 IPFS
-                            </span>
-                          ) : null}
+              return (
+                <motion.div
+                  key={record.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.03 }}
+                >
+                  <Card className="glass-card">
+                    <CardContent className="p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                      {/* Left: details */}
+                      <div className="flex items-start gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                          <span className="text-lg">{getRecordIcon(record.record_type)}</span>
                         </div>
 
-                        <div className="text-sm text-muted-foreground flex flex-wrap gap-3 mt-1">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="w-4 h-4" />
-                            {record.record_date ? new Date(record.record_date).toLocaleDateString() : "—"}
-                          </span>
+                        <div>
+                          <div className="font-semibold text-lg flex items-center gap-2 flex-wrap">
+                            {record.title}
+                            {record.ipfs_hash ? (
+                              <span className="text-xs px-2 py-0.5 rounded-full border border-border text-muted-foreground">
+                                🌐 IPFS
+                              </span>
+                            ) : null}
+                            {isAnalyzed ? (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                Analyzed
+                              </span>
+                            ) : null}
+                          </div>
 
-                          {record.doctor_name ? <span>Dr. {record.doctor_name}</span> : null}
-
-                          {record.file_name ? (
-                            <span>
-                              {record.file_name} • {formatFileSize(record.file_size)}
+                          <div className="text-sm text-muted-foreground flex flex-wrap gap-3 mt-1">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-4 h-4" />
+                              {record.record_date ? new Date(record.record_date).toLocaleDateString() : "—"}
                             </span>
-                          ) : null}
+
+                            {record.doctor_name ? <span>Dr. {record.doctor_name}</span> : null}
+
+                            {record.file_name ? (
+                              <span>
+                                {record.file_name} • {formatFileSize(record.file_size)}
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Right: actions */}
-                    <div className="flex flex-wrap gap-2 justify-end">
-                      {/* Analyze */}
-                      {record.file_url ? (
-                        <Button
-                          variant="outline"
-                          onClick={() => handleAnalyze(record)}
-                          disabled={processingId === record.id}
-                          className={`border-purple-200 text-purple-700 ${processingId === record.id
-                            ? "bg-primary/10"
-                            : "hover:bg-purple-50 hover:text-purple-600"
-                            }`}
-                          title="Analyze with AI"
-                        >
-                          {processingId === record.id ? (
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          ) : (
-                            <BrainCircuit className="w-4 h-4 mr-2" />
-                          )}
-                          {processingId === record.id ? "Analyzing..." : "Analyze"}
-                        </Button>
-                      ) : null}
+                      {/* Right: actions */}
+                      <div className="flex flex-wrap gap-2 justify-end">
+                        {/* Analyze / Analyzed button */}
+                        {record.file_url ? (
+                          <Button
+                            variant="outline"
+                            onClick={() => handleAnalyze(record)}
+                            disabled={processingId === record.id || isAnalyzed}
+                            className={
+                              processingId === record.id
+                                ? "bg-primary/10 border-purple-200 text-purple-700 opacity-80"
+                                : isAnalyzed
+                                  ? "border-emerald-300 text-emerald-700 bg-emerald-50/80 opacity-90 cursor-not-allowed"
+                                  : "border-purple-200 text-purple-700 hover:bg-purple-50 hover:text-purple-600"
+                            }
+                            title={isAnalyzed ? "Record already analyzed" : "Analyze with AI"}
+                          >
+                            {processingId === record.id ? (
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : isAnalyzed ? (
+                              <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-600" />
+                            ) : (
+                              <BrainCircuit className="w-4 h-4 mr-2" />
+                            )}
+                            {processingId === record.id
+                              ? "Analyzing..."
+                              : isAnalyzed
+                                ? "Analyzed"
+                                : "Analyze"}
+                          </Button>
+                        ) : null}
 
                       {/* View / Download (public URL) */}
                       {record.file_url ? (
@@ -426,7 +460,7 @@ export default function Records() {
                   </CardContent>
                 </Card>
               </motion.div>
-            ))}
+            )})}
           </div>
         )}
 

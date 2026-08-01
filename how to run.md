@@ -15,3 +15,5 @@ node index.js
 # Or inside whatsapp-gateway directory:
 cd whatsapp-gateway
 node index.js
+
+That all.

@@ -249,6 +249,34 @@ export function PharmacyChat() {
         ),
         ul: ({ node, ...props }: any) => <ul className="list-disc pl-5 space-y-1 mb-4" {...props} />,
         strong: ({ node, ...props }: any) => <span className="font-semibold text-indigo-700 bg-indigo-50 px-1 rounded" {...props} />,
+        a: ({ node, href, children, ...props }: any) => {
+            const isPayLink = href?.includes('payment') || href?.includes('checkout') || href?.includes('pay') || (children && String(children).toLowerCase().includes('pay'));
+            if (isPayLink) {
+                return (
+                    <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 my-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold text-sm rounded-xl shadow-md shadow-emerald-200 hover:shadow-lg hover:shadow-emerald-300 transform hover:-translate-y-0.5 transition-all cursor-pointer no-underline border border-emerald-400/30"
+                        {...props}
+                    >
+                        💳 {children || 'Pay for Order'}
+                        <span className="ml-1 text-xs bg-white/20 px-2 py-0.5 rounded-md font-semibold">Pay Now ➔</span>
+                    </a>
+                );
+            }
+            return (
+                <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-semibold text-indigo-600 underline hover:text-indigo-800 transition-colors"
+                    {...props}
+                >
+                    {children}
+                </a>
+            );
+        },
     }
 
     return (
@@ -256,7 +284,7 @@ export function PharmacyChat() {
             <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="w-full max-w-4xl mb-6 flex items-center justify-between"
+                className="w-full mb-6 flex items-center justify-between"
             >
                 <div className="flex items-center gap-4">
                     <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-500 flex items-center justify-center shadow-lg">
@@ -279,7 +307,7 @@ export function PharmacyChat() {
                 )}
             </motion.div>
 
-            <Card className="w-full max-w-4xl h-[75vh] flex flex-col shadow-2xl shadow-indigo-100/50 rounded-[2rem] overflow-hidden border-indigo-100/50 bg-white/80 backdrop-blur-xl relative">
+            <Card className="w-full h-[calc(100vh-10rem)] flex flex-col shadow-2xl shadow-indigo-100/50 dark:shadow-none rounded-[2rem] overflow-hidden border-indigo-100/50 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl relative">
                 <AnimatePresence>
                     {isListening && (
                         <motion.div className="absolute inset-0 z-50 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
@@ -301,12 +329,12 @@ export function PharmacyChat() {
                             <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-6">
                                 <Pill className="w-10 h-10 text-indigo-500" />
                             </div>
-                            <h2 className="text-xl font-semibold text-slate-800 mb-6">How can I assist you with your medications?</h2>
+                            <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-6">How can I assist you with your medications?</h2>
                             <div className="grid grid-cols-2 gap-3 w-full max-w-lg">
                                 {quickActions.map((action, i) => (
-                                    <button key={i} onClick={() => handleSendMessage(action.text)} className="p-4 rounded-2xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all text-left group">
+                                    <button key={i} onClick={() => handleSendMessage(action.text)} className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-indigo-200 dark:hover:border-indigo-500/50 hover:bg-indigo-50/30 dark:hover:bg-indigo-500/10 transition-all text-left group">
                                         <span className="text-xl mb-1 block">{action.icon}</span>
-                                        <span className="text-sm font-medium text-slate-700 group-hover:text-indigo-700">{action.text}</span>
+                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-indigo-700 dark:group-hover:text-indigo-400">{action.text}</span>
                                     </button>
                                 ))}
                             </div>
