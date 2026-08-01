@@ -42,7 +42,9 @@ import {
     FileCheck,
     Dna,
     Zap,
-    BookOpen
+    BookOpen,
+    Send,
+    MessageSquare
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -100,7 +102,40 @@ export function Analysis() {
     const [trends, setTrends] = useState<TrendPoint[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [completedSteps, setCompletedSteps] = useState<{ [key: string]: boolean }>({});
+    const [sendingWa, setSendingWa] = useState(false);
+    const [waSentSuccess, setWaSentSuccess] = useState<string | null>(null);
     const resultsRef = useRef<HTMLDivElement>(null);
+
+    const handleSendWhatsAppReport = async () => {
+        const defaultPhone = user?.phone || "8806275531";
+        const inputPhone = window.prompt("Enter the WhatsApp phone number to send the AI Health Report to:", defaultPhone);
+        if (!inputPhone) return; // User cancelled
+
+        const cleanPhone = inputPhone.trim();
+        if (!cleanPhone) return;
+
+        setSendingWa(true);
+        setWaSentSuccess(null);
+        try {
+            const activeId = patientId || urlPatientId || user?.id;
+            const res = await fetch(`${API_BASE_URL}/send-whatsapp-health-report`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: activeId, phone: cleanPhone })
+            });
+            const json = await res.json();
+            if (json.success) {
+                setWaSentSuccess(json.message || `Report sent to WhatsApp (+91 ${cleanPhone})!`);
+                setTimeout(() => setWaSentSuccess(null), 6000);
+            } else {
+                alert(json.message || "Could not deliver report via WhatsApp.");
+            }
+        } catch (err: any) {
+            alert("Failed to send WhatsApp message. Ensure backend & WhatsApp Gateway are running.");
+        } finally {
+            setSendingWa(false);
+        }
+    };
 
     const handleDownload = async () => {
         if (!resultsRef.current) return;
@@ -285,15 +320,33 @@ export function Analysis() {
                     </Button>
                     
                     {data && (
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-3">
+                            {waSentSuccess && (
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    className="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-semibold flex items-center gap-1.5 shadow-sm"
+                                >
+                                    <Check className="w-4 h-4 text-emerald-500" />
+                                    {waSentSuccess}
+                                </motion.div>
+                            )}
                             <Button
-                                variant="outline"
-                                onClick={runAnalysis}
-                                size="sm"
-                                className="flex items-center gap-2 border-slate-300 dark:border-slate-700"
+                                onClick={handleSendWhatsAppReport}
+                                disabled={sendingWa}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/25 rounded-xl transition-all"
                             >
-                                <Zap className="w-4 h-4 text-amber-500" />
-                                Refresh Analysis
+                                {sendingWa ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        Sending to WhatsApp...
+                                    </>
+                                ) : (
+                                    <>
+                                        <MessageSquare className="w-4 h-4 text-white fill-white/20" />
+                                        Send Report on WhatsApp
+                                    </>
+                                )}
                             </Button>
                             <Button
                                 onClick={handleDownload}
