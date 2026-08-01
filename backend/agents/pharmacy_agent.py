@@ -38,7 +38,19 @@ class PharmacyAgent(BaseAgent):
     # Helpers
     # ------------------------------------------------------------------
     def _resolve_patient_id(self, user_id: str) -> Optional[str]:
-        """Convert auth user_id → patients.id (the FK used in orders/refills)."""
+        """Convert auth user_id → patients.id (the FK used in orders/refills). Handles both patients.id and auth.users.id."""
+        if not user_id:
+            return None
+            
+        # 1. Check if user_id is already a patients.id primary key
+        try:
+            p_direct = self.db.table("patients").select("id").eq("id", user_id).maybe_single().execute()
+            if p_direct and getattr(p_direct, 'data', None):
+                return p_direct.data["id"]
+        except Exception:
+            pass
+
+        # 2. Check if user_id is an auth.users.id
         res = (
             self.db.table("patients")
             .select("id")
