@@ -71,17 +71,20 @@ async def safe_generate_content(
             except Exception as e:
                 last_exception = e
                 err_str = str(e)
-                # 429 Rate Limit Retry
-                if ("429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "quota" in err_str.lower()) and attempt < 2:
+                # 429 Rate Limit / Transient Network Disconnect Retry
+                if ("429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "quota" in err_str.lower() or "disconnected" in err_str.lower() or "503" in err_str or "500" in err_str) and attempt < 2:
                     wait_time = (attempt + 1) * 2
-                    print(f"⏳ [{model_name}] Rate limit hit, retrying in {wait_time}s (attempt {attempt + 1}/3)...")
+                    print(f"⏳ [{model_name}] Network / Server error ({err_str[:60]}), retrying in {wait_time}s (attempt {attempt + 1}/3)...")
                     await asyncio.sleep(wait_time)
-                # Model unavailable / deprecated / 404 -> Switch to fallback model immediately
-                elif "404" in err_str or "NOT_FOUND" in err_str or "no longer available" in err_str.lower() or "INVALID_ARGUMENT" in err_str:
-                    print(f"⚠️ Model {model_name} failed with model error: {err_str[:120]}. Falling back to {fallback_model}...")
+                # Model unavailable / deprecated / 404 / 400 -> Switch to fallback model immediately
+                elif "404" in err_str or "NOT_FOUND" in err_str or "no longer available" in err_str.lower() or "INVALID_ARGUMENT" in err_str or "disconnected" in err_str.lower():
+                    print(f"⚠️ Model {model_name} failed with error: {err_str[:120]}. Trying fallback model {fallback_model}...")
                     break
                 else:
-                    raise e
+                    print(f"⚠️ Model {model_name} attempt {attempt+1} failed: {err_str[:100]}")
+                    if attempt == 2:
+                        break
+                    await asyncio.sleep(1)
 
     if last_exception:
         raise last_exception
