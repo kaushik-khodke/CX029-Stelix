@@ -9,7 +9,7 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 class WhatsAppGatewayManager {
     constructor(options = {}) {
-        this.backendUrl = options.backendUrl || process.env.BACKEND_URL || 'http://localhost:8000';
+        this.backendUrl = options.backendUrl || process.env.BACKEND_URL || 'https://cx029-stelix.onrender.com';
         this.client = null;
         this.qrCode = null;
         this.state = 'UNINITIALIZED'; // UNINITIALIZED, LAUNCHING, AWAITING_QR, CONNECTED, DISCONNECTED, ERROR

@@ -5,7 +5,7 @@ const app = express();
 app.use(express.json());
 
 const PORT = process.env.PORT || 3001;
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
+const BACKEND_URL = process.env.BACKEND_URL || 'https://cx029-stelix.onrender.com';
 
 const gateway = new WhatsAppGatewayManager({ backendUrl: BACKEND_URL });
 
