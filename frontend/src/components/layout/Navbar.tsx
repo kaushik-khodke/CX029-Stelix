@@ -25,6 +25,7 @@ import {
   Search,
   LogOut,
   Stethoscope,
+  Bot,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -118,9 +119,7 @@ export function Navbar() {
     { to: "/patient/consent", icon: <ShieldCheck className="h-4 w-4" />, label: "Consents", badge: pendingConsents },
     { to: "/patient/routines", icon: <HeartPulse className="h-4 w-4" />, label: "Health Tracker" },
     { to: "/patient/records", icon: <FileText className="h-4 w-4" />, label: "Medical Records" },
-    { to: "/patient/appointments", icon: <CalendarDays className="h-4 w-4" />, label: "Appointments" },
-    { to: "/patient/providers", icon: <Stethoscope className="h-4 w-4" />, label: "My Providers" },
-    { to: "/patient/settings", icon: <Settings className="h-4 w-4" />, label: "Settings" },
+    { to: "/patient/pharmacy-chat", icon: <Bot className="h-4 w-4 text-emerald-500" />, label: "Expert Pharmacy" },
   ];
 
   const doctorLinks: NavLinkItem[] = [
