@@ -249,6 +249,34 @@ export function PharmacyChat() {
         ),
         ul: ({ node, ...props }: any) => <ul className="list-disc pl-5 space-y-1 mb-4" {...props} />,
         strong: ({ node, ...props }: any) => <span className="font-semibold text-indigo-700 bg-indigo-50 px-1 rounded" {...props} />,
+        a: ({ node, href, children, ...props }: any) => {
+            const isPayLink = href?.includes('payment') || href?.includes('checkout') || href?.includes('pay') || (children && String(children).toLowerCase().includes('pay'));
+            if (isPayLink) {
+                return (
+                    <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 my-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold text-sm rounded-xl shadow-md shadow-emerald-200 hover:shadow-lg hover:shadow-emerald-300 transform hover:-translate-y-0.5 transition-all cursor-pointer no-underline border border-emerald-400/30"
+                        {...props}
+                    >
+                        💳 {children || 'Pay for Order'}
+                        <span className="ml-1 text-xs bg-white/20 px-2 py-0.5 rounded-md font-semibold">Pay Now ➔</span>
+                    </a>
+                );
+            }
+            return (
+                <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-semibold text-indigo-600 underline hover:text-indigo-800 transition-colors"
+                    {...props}
+                >
+                    {children}
+                </a>
+            );
+        },
     }
 
     return (

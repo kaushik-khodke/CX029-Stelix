@@ -140,6 +140,7 @@ CRITICAL WORKFLOW RULES FOR MEDICINES & ORDERS:
 2. **Prescription Verification**: NEVER ask the patient for a prescription or assume a prescription is required before calling `call_pharmacy_agent`. `call_pharmacy_agent` automatically checks the database (`medicines.prescription_required`) to see if a prescription is actually needed.
 3. **Over-The-Counter (OTC) Medicines**: If a medicine does NOT require a prescription in the database (such as Paracetamol/Acetaminophen, Ibuprofen, Vitamin C, etc.), `call_pharmacy_agent` will immediately generate the order draft and payment checkout link.
 4. **Prescription-Required Medicines**: Only if the database indicates `prescription_required = true` for that medicine will the system check the user's uploaded records or ask for a prescription.
+5. **ALWAYS INCLUDE PAYMENT LINKS IN YOUR FINAL RESPONSE**: When `call_pharmacy_agent` creates an order draft and returns a payment checkout URL (e.g. `[Pay for Order](...)` or `checkout_url`), you MUST include the exact clickable markdown link `[Pay for Order](checkout_url)` directly in your final response to the user. NEVER omit, rephrase, or describe the payment link without providing the actual clickable link string!
 
 GENERAL RULES:
 1. **Context Alignment**: If a doctor asks about their duties, use `call_doctor_agent`. If a patient asks about their health, use `call_health_agent`.
@@ -217,6 +218,7 @@ class OrchestratorAgent:
 
         agents_used = []
         steps = []
+        checkout_url = None
         
         try:
             models_to_try = [MODEL_TOOL_AGENT, MODEL_TOOL_AGENT_FALLBACK, "gemini-2.0-flash-lite"]
@@ -281,6 +283,15 @@ class OrchestratorAgent:
                     agents_used.append(result.agent_name)
                     steps.append({"agent": result.agent_name, "message": result.message, "success": result.success})
                     
+                    # Capture payment checkout URL if present
+                    if isinstance(result.data, dict) and result.data.get("checkout_url"):
+                        checkout_url = result.data.get("checkout_url")
+                    elif result.message and "[Pay for Order](" in result.message:
+                        import re
+                        match = re.search(r'\[Pay for Order\]\(([^)]+)\)', result.message)
+                        if match:
+                            checkout_url = match.group(1)
+
                     tool_responses.append(
                         types.Part.from_function_response(
                             name=fc.name,
@@ -301,6 +312,11 @@ class OrchestratorAgent:
                             raise e
 
             final_text = response.text or "I couldn't process that request."
+            
+            # Guarantee that payment checkout URL is present in final text if created
+            if checkout_url and checkout_url not in final_text and "[Pay for Order]" not in final_text:
+                final_text += f"\n\n💳 **Click here to complete your payment:**\n[Pay for Order]({checkout_url})"
+
             self._append_history(user_id, "user", message)
             self._append_history(user_id, "model", final_text)
 
