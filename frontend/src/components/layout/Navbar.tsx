@@ -64,10 +64,22 @@ type NavLinkItem = {
 
 // --- Custom NavLink Component using SidebarMenuButton ---
 function SidebarNavLink({ item, active }: { item: NavLinkItem, active: boolean }) {
+  const handleClick = (e: React.MouseEvent) => {
+    if (item.to.includes("#")) {
+      const hashPart = item.to.split("#")[1];
+      const el = document.getElementById(hashPart);
+      if (el) {
+        e.preventDefault();
+        el.scrollIntoView({ behavior: "smooth" });
+        window.history.pushState(null, "", item.to);
+      }
+    }
+  };
+
   return (
     <SidebarMenuItem>
       <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
-        <Link to={item.to} className="flex items-center justify-between w-full">
+        <Link to={item.to} onClick={handleClick} className="flex items-center justify-between w-full">
           <div className="flex items-center gap-2 overflow-hidden">
             <div className="shrink-0">{item.icon}</div>
             <span className="truncate group-data-[collapsible=icon]:hidden">{item.label}</span>
@@ -162,10 +174,7 @@ export function Navbar() {
 
   const doctorLinks: NavLinkItem[] = [
     { to: "/doctor", icon: <LayoutDashboard className="h-4 w-4" />, label: "Dashboard" },
-    { to: "/doctor/patients", icon: <UserCircle2 className="h-4 w-4" />, label: "My Patients" },
-    { to: "/doctor/appointments", icon: <CalendarDays className="h-4 w-4" />, label: "Schedule" },
-    { to: "/doctor/records", icon: <FileText className="h-4 w-4" />, label: "Patient Records" },
-    { to: "/doctor/settings", icon: <Settings className="h-4 w-4" />, label: "Settings" },
+    { to: "/doctor#my-patients", icon: <UserCircle2 className="h-4 w-4" />, label: "My Patients" },
   ];
 
   const hospitalLinks: NavLinkItem[] = [

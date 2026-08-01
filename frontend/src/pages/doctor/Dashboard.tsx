@@ -149,6 +149,20 @@ export default function Dashboard() {
     loadAll();
   }, [loadAll]);
 
+  useEffect(() => {
+    const handleHash = () => {
+      if (window.location.hash === "#my-patients") {
+        const el = document.getElementById("my-patients");
+        if (el) {
+          setTimeout(() => el.scrollIntoView({ behavior: "smooth" }), 200);
+        }
+      }
+    };
+    handleHash();
+    window.addEventListener("hashchange", handleHash);
+    return () => window.removeEventListener("hashchange", handleHash);
+  }, []);
+
 
 
   const patientById = useMemo(() => {
@@ -344,6 +358,7 @@ export default function Dashboard() {
 
         {/* Active Consents */}
         <motion.div
+          id="active-consents"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
@@ -386,7 +401,7 @@ export default function Dashboard() {
                   </Button>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-4 max-h-[380px] overflow-y-auto pr-2 custom-scrollbar">
                   {approvedConsents.map((c) => {
                     const p = patientById.get(c.patient_id);
                     return (
@@ -429,6 +444,7 @@ export default function Dashboard() {
 
         {/* My Patients */}
         <motion.div
+          id="my-patients"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.25 }}
