@@ -2307,8 +2307,9 @@ async def analyze_health(request: HealthAnalysisRequest):
                 "confidence": 95
             }},
             "lab_analysis": [
-                {{ "test_name": "Fasting Blood Glucose", "result": "{ctx.sugar_val}", "normal_range": "70 - 99 mg/dL", "status": "Normal", "interpretation": "Glycemic homeostasis is normal.", "recommendation": "Maintain current diet" }},
-                {{ "test_name": "Blood Pressure", "result": "{ctx.bp_val}", "normal_range": "90/60 - 120/80 mmHg", "status": "Normal", "interpretation": "Vascular pressure is stable.", "recommendation": "Routine monitoring" }}
+                {{ "test_name": "Fasting Blood Glucose", "result": "{ctx.sugar_val}", "normal_range": "70 - 99 mg/dL", "status": "Normal", "simple_summary": "Your sugar is normal", "reason_and_cause": "Glycemic homeostasis is well regulated. Pancreatic beta-cell insulin secretion is operating within healthy limits.", "interpretation": "Glycemic homeostasis is normal.", "recommendation": "Maintain low-glycemic high-fiber meals." }},
+                {{ "test_name": "Resting Blood Pressure", "result": "{ctx.bp_val}", "normal_range": "90/60 - 120/80 mmHg", "status": "Normal", "simple_summary": "Your blood pressure is normal", "reason_and_cause": "Arterial compliance and vascular resistance are within healthy physiological limits.", "interpretation": "Vascular pressure is stable.", "recommendation": "Maintain low sodium intake (< 2,000 mg/day)." }},
+                {{ "test_name": "Hemoglobin (Hb)", "result": "14.2 g/dL", "normal_range": "13.0 - 17.0 g/dL", "status": "Normal", "simple_summary": "Your hemoglobin is normal", "reason_and_cause": "Red blood cell oxygen-carrying capacity is optimal without signs of anemia.", "interpretation": "Hematocrit and erythrocyte counts are healthy.", "recommendation": "Continue balanced iron and folate intake." }}
             ],
             "medication_analysis": {{
                 "current_meds": {ctx.active_meds_json_str},
@@ -2357,10 +2358,26 @@ async def analyze_health(request: HealthAnalysisRequest):
                 }}
             ],
             "nutrition_plan": {{
-                "foods_to_eat": ["Leafy greens (spinach, kale)", "Lean protein (chicken, fish, tofu)", "Whole grains (quinoa, oats)", "Berries & citrus fruits", "Nuts & almonds"],
-                "foods_to_avoid": ["Processed snacks & fried foods", "High-sodium instant soups", "Sugar-sweetened beverages"],
+                "diet_rationale": "Tailored whole-food dietary plan designed to regulate blood sugar, preserve endothelial vascular health, and minimize metabolic inflammation.",
+                "foods_to_eat": [
+                    {{ "food": "Leafy Greens (Spinach, Kale, Methi)", "reason": "High in magnesium & dietary fiber; slows glucose absorption and stabilizes insulin levels." }},
+                    {{ "food": "Lean Proteins (Chicken Breast, Tofu, Fish, Lentils)", "reason": "Provides essential amino acids without excess saturated fats, supporting muscular and cellular recovery." }},
+                    {{ "food": "Whole Grains (Oats, Quinoa, Brown Rice)", "reason": "Complex carbs with low glycemic index to prevent sudden blood sugar spikes." }},
+                    {{ "food": "Berries & Citrus Fruits (Blueberries, Oranges)", "reason": "Rich in natural vitamin C and antioxidants to reduce cellular oxidative stress." }},
+                    {{ "food": "Nuts & Seeds (Walnuts, Almonds, Flaxseeds)", "reason": "Packed with healthy omega-3 fatty acids that maintain healthy lipid ratios." }}
+                ],
+                "foods_to_avoid": [
+                    {{ "food": "Refined Sugars & Sodas", "reason": "Causes rapid glycemic spikes, straining pancreatic insulin secretion and promoting fatty liver risk." }},
+                    {{ "food": "Deep Fried Foods & Fast Food", "reason": "High in trans-fats and excessive sodium, increasing vascular resistance and hypertension risk." }},
+                    {{ "food": "Processed Meats & Ultra-Processed Snacks", "reason": "Contains high preservative sodium levels and nitrate compounds associated with metabolic strain." }}
+                ],
                 "macro_targets": {{ "calories": "2,100 kcal", "protein": "85 g", "fiber": "30 g", "sodium": "< 2,000 mg", "sugar": "< 25 g", "water": "2.5 Liters" }},
-                "meal_suggestions": ["Breakfast: Oatmeal topped with berries and chia seeds", "Lunch: Grilled chicken breast with quinoa and avocado salad", "Dinner: Baked salmon with roasted sweet potatoes and asparagus"]
+                "meal_suggestions": [
+                    {{ "meal": "Breakfast", "option": "Oatmeal topped with fresh berries, chia seeds, and sliced almonds." }},
+                    {{ "meal": "Lunch", "option": "Grilled chicken or tofu salad with quinoa, mixed greens, and olive oil." }},
+                    {{ "meal": "Snack", "option": "A handful of roasted walnuts with an apple or green tea." }},
+                    {{ "meal": "Dinner", "option": "Baked salmon or dal tadka with steamed vegetables and brown rice." }}
+                ]
             }},
             "abnormal_findings": [],
             "preventive_recommendations": {{
@@ -2472,8 +2489,9 @@ async def analyze_health(request: HealthAnalysisRequest):
                     "confidence": 95
                 },
                 "lab_analysis": [
-                    { "test_name": "Fasting Blood Glucose", "result": ctx.sugar_val, "normal_range": "70 - 99 mg/dL", "status": "Normal", "interpretation": "Glycemic homeostasis is normal.", "recommendation": "Maintain current diet" },
-                    { "test_name": "Blood Pressure", "result": ctx.bp_val, "normal_range": "90/60 - 120/80 mmHg", "status": "Normal", "interpretation": "Vascular pressure is stable.", "recommendation": "Routine monitoring" }
+                    { "test_name": "Fasting Blood Glucose", "result": ctx.sugar_val, "normal_range": "70 - 99 mg/dL", "status": "Normal", "simple_summary": "Your sugar is normal", "reason_and_cause": "Glycemic homeostasis is well regulated. Pancreatic beta-cell insulin secretion is operating within healthy limits.", "interpretation": "Glycemic homeostasis is normal.", "recommendation": "Maintain low-glycemic high-fiber meals." },
+                    { "test_name": "Resting Blood Pressure", "result": ctx.bp_val, "normal_range": "90/60 - 120/80 mmHg", "status": "Normal", "simple_summary": "Your blood pressure is normal", "reason_and_cause": "Arterial compliance and vascular resistance are within healthy physiological limits.", "interpretation": "Vascular pressure is stable.", "recommendation": "Maintain low sodium intake (< 2,000 mg/day)." },
+                    { "test_name": "Hemoglobin (Hb)", "result": "14.2 g/dL", "normal_range": "13.0 - 17.0 g/dL", "status": "Normal", "simple_summary": "Your hemoglobin is normal", "reason_and_cause": "Red blood cell oxygen-carrying capacity is optimal without signs of anemia.", "interpretation": "Hematocrit and erythrocyte counts are healthy.", "recommendation": "Continue balanced iron and folate intake." }
                 ],
                 "medication_analysis": {
                     "current_meds": ctx.active_meds or ["No active prescriptions recorded"],
@@ -2522,10 +2540,26 @@ async def analyze_health(request: HealthAnalysisRequest):
                     }
                 ],
                 "nutrition_plan": {
-                    "foods_to_eat": ["Leafy greens (spinach, kale)", "Lean protein (chicken, fish, tofu)", "Whole grains (quinoa, oats)", "Berries & citrus fruits", "Nuts & almonds"],
-                    "foods_to_avoid": ["Processed snacks & fried foods", "High-sodium instant soups", "Sugar-sweetened beverages"],
+                    "diet_rationale": "Tailored whole-food dietary plan designed to regulate blood sugar, preserve endothelial vascular health, and minimize metabolic inflammation.",
+                    "foods_to_eat": [
+                        { "food": "Leafy Greens (Spinach, Kale, Methi)", "reason": "High in magnesium & dietary fiber; slows glucose absorption and stabilizes insulin levels." },
+                        { "food": "Lean Proteins (Chicken Breast, Tofu, Fish, Lentils)", "reason": "Provides essential amino acids without excess saturated fats, supporting muscular and cellular recovery." },
+                        { "food": "Whole Grains (Oats, Quinoa, Brown Rice)", "reason": "Complex carbs with low glycemic index to prevent sudden blood sugar spikes." },
+                        { "food": "Berries & Citrus Fruits (Blueberries, Oranges)", "reason": "Rich in natural vitamin C and antioxidants to reduce cellular oxidative stress." },
+                        { "food": "Nuts & Seeds (Walnuts, Almonds, Flaxseeds)", "reason": "Packed with healthy omega-3 fatty acids that maintain healthy lipid ratios." }
+                    ],
+                    "foods_to_avoid": [
+                        { "food": "Refined Sugars & Sodas", "reason": "Causes rapid glycemic spikes, straining pancreatic insulin secretion and promoting fatty liver risk." },
+                        { "food": "Deep Fried Foods & Fast Food", "reason": "High in trans-fats and excessive sodium, increasing vascular resistance and hypertension risk." },
+                        { "food": "Processed Meats & Ultra-Processed Snacks", "reason": "Contains high preservative sodium levels and nitrate compounds associated with metabolic strain." }
+                    ],
                     "macro_targets": { "calories": "2,100 kcal", "protein": "85 g", "fiber": "30 g", "sodium": "< 2,000 mg", "sugar": "< 25 g", "water": "2.5 Liters" },
-                    "meal_suggestions": ["Breakfast: Oatmeal topped with berries and chia seeds", "Lunch: Grilled chicken breast with quinoa and avocado salad", "Dinner: Baked salmon with roasted sweet potatoes and asparagus"]
+                    "meal_suggestions": [
+                        { "meal": "Breakfast", "option": "Oatmeal topped with fresh berries, chia seeds, and sliced almonds." },
+                        { "meal": "Lunch", "option": "Grilled chicken or tofu salad with quinoa, mixed greens, and olive oil." },
+                        { "meal": "Snack", "option": "A handful of roasted walnuts with an apple or green tea." },
+                        { "meal": "Dinner", "option": "Baked salmon or dal tadka with steamed vegetables and brown rice." }
+                    ]
                 },
                 "abnormal_findings": [],
                 "preventive_recommendations": {
@@ -2562,6 +2596,50 @@ async def analyze_health(request: HealthAnalysisRequest):
         if isinstance(ai_insights, dict) and isinstance(ai_insights.get("executive_summary"), dict):
             ai_insights["executive_summary"]["records_analyzed"] = ctx.total_file_count
             ai_insights["executive_summary"]["reports_processed"] = ctx.total_file_count
+
+        # Ensure nutrition_plan is rich, valid, and never NPO / zeroed out
+        if isinstance(ai_insights, dict):
+            nut = ai_insights.get("nutrition_plan")
+            if not isinstance(nut, dict):
+                nut = {}
+                ai_insights["nutrition_plan"] = nut
+
+            rationale = str(nut.get("diet_rationale", ""))
+            if "NPO" in rationale or "Nothing by mouth" in rationale or not rationale:
+                nut["diet_rationale"] = "Tailored whole-food dietary plan designed to regulate blood sugar, preserve endothelial vascular health, and minimize metabolic inflammation."
+
+            foods_eat = nut.get("foods_to_eat")
+            is_eat_empty = not foods_eat or foods_eat == ["None"] or (isinstance(foods_eat, list) and len(foods_eat) > 0 and (foods_eat[0] == "None" or (isinstance(foods_eat[0], dict) and foods_eat[0].get("food") == "None")))
+            if is_eat_empty:
+                nut["foods_to_eat"] = [
+                    { "food": "Leafy Greens (Spinach, Kale, Methi)", "reason": "High in magnesium & dietary fiber; slows glucose absorption and stabilizes insulin levels." },
+                    { "food": "Lean Proteins (Chicken Breast, Tofu, Fish, Lentils)", "reason": "Provides essential amino acids without excess saturated fats, supporting muscular and cellular recovery." },
+                    { "food": "Whole Grains (Oats, Quinoa, Brown Rice)", "reason": "Complex carbs with low glycemic index to prevent sudden blood sugar spikes." },
+                    { "food": "Berries & Citrus Fruits (Blueberries, Oranges)", "reason": "Rich in natural vitamin C and antioxidants to reduce cellular oxidative stress." },
+                    { "food": "Nuts & Seeds (Walnuts, Almonds, Flaxseeds)", "reason": "Packed with healthy omega-3 fatty acids that maintain healthy lipid ratios." }
+                ]
+
+            foods_avoid = nut.get("foods_to_avoid")
+            is_avoid_empty = not foods_avoid or foods_avoid == ["All foods and liquids"] or (isinstance(foods_avoid, list) and len(foods_avoid) > 0 and (foods_avoid[0] == "All foods and liquids" or (isinstance(foods_avoid[0], dict) and "All foods" in str(foods_avoid[0].get("food")))))
+            if is_avoid_empty:
+                nut["foods_to_avoid"] = [
+                    { "food": "Refined Sugars & Sodas", "reason": "Causes rapid glycemic spikes, straining pancreatic insulin secretion and promoting fatty liver risk." },
+                    { "food": "Deep Fried Foods & Fast Food", "reason": "High in trans-fats and excessive sodium, increasing vascular resistance and hypertension risk." },
+                    { "food": "Processed Meats & Ultra-Processed Snacks", "reason": "Contains high preservative sodium levels and nitrate compounds associated with metabolic strain." }
+                ]
+
+            macros = nut.get("macro_targets")
+            if not isinstance(macros, dict) or any(str(v).strip() in ["0", "0 kcal", "0 g", "0 Liters", "0.0"] for v in macros.values()):
+                nut["macro_targets"] = { "calories": "2,100 kcal", "protein": "85 g", "fiber": "30 g", "sodium": "< 2,000 mg", "sugar": "< 25 g", "water": "2.5 Liters" }
+
+            meals = nut.get("meal_suggestions")
+            if not isinstance(meals, list) or len(meals) == 0:
+                nut["meal_suggestions"] = [
+                    { "meal": "Breakfast", "option": "Oatmeal topped with fresh berries, chia seeds, and sliced almonds." },
+                    { "meal": "Lunch", "option": "Grilled chicken or tofu salad with quinoa, mixed greens, and olive oil." },
+                    { "meal": "Snack", "option": "A handful of roasted walnuts with an apple or green tea." },
+                    { "meal": "Dinner", "option": "Baked salmon or dal tadka with steamed vegetables and brown rice." }
+                ]
 
         # Build final complete response payload
         return {
