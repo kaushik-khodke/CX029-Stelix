@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
 import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -9,8 +8,12 @@ import {
     Mic,
     Bot,
     StopCircle,
-    ShieldCheck,
-    Pill
+    Pill,
+    Stethoscope,
+    PackageCheck,
+    RefreshCw,
+    Activity,
+    Sparkles
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -26,11 +29,11 @@ interface Message {
 
 function VoiceWaveform() {
     return (
-        <div className="flex items-center gap-1 h-12">
+        <div className="flex items-center gap-1.5 h-12">
             {[...Array(5)].map((_, i) => (
                 <motion.div
                     key={i}
-                    className="w-1 bg-gradient-to-t from-indigo-500 to-blue-500 rounded-full"
+                    className="w-1.5 bg-gradient-to-t from-indigo-500 to-blue-500 rounded-full"
                     animate={{
                         height: ['20%', `${40 + Math.random() * 60}%`, '20%'],
                     }}
@@ -76,7 +79,7 @@ export function PharmacyChat() {
         setVoiceError(null)
         if (!shouldListenRef.current) setInputValue('')
         if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-            setVoiceError('Voice input not supported.')
+            setVoiceError('Voice input not supported in your browser.')
             return
         }
 
@@ -201,7 +204,7 @@ export function PharmacyChat() {
                     message: textToSend,
                     patient_id: user?.id,
                     language: i18n.language || 'en',
-                    use_voice: true, // Always request high-quality audio
+                    use_voice: true,
                 }),
             })
             const result = await response.json()
@@ -235,20 +238,48 @@ export function PharmacyChat() {
     }
 
     const quickActions = [
-        { text: 'Medicines for Cough', icon: '💊' },
-        { text: 'Check Paracetamol Stock', icon: '📦' },
-        { text: 'Refill My Meds', icon: '🔄' },
-        { text: 'Side Effects Query', icon: '❓' },
+        {
+            title: 'Medicines for Cough',
+            subtitle: 'Common cold & cough remedies',
+            prompt: 'Medicines for Cough',
+            icon: <Stethoscope className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />,
+            iconBg: 'bg-indigo-50 dark:bg-indigo-950/50',
+            borderColor: 'hover:border-indigo-400/50 dark:hover:border-indigo-500/50',
+        },
+        {
+            title: 'Check Paracetamol Stock',
+            subtitle: 'Availability at nearby pharmacies',
+            prompt: 'Check Paracetamol Stock',
+            icon: <PackageCheck className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />,
+            iconBg: 'bg-indigo-50 dark:bg-indigo-950/50',
+            borderColor: 'hover:border-indigo-400/50 dark:hover:border-indigo-500/50',
+        },
+        {
+            title: 'Refill My Meds',
+            subtitle: 'Request prescription refill',
+            prompt: 'Refill My Meds',
+            icon: <RefreshCw className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />,
+            iconBg: 'bg-emerald-50 dark:bg-emerald-950/50',
+            borderColor: 'hover:border-emerald-400/50 dark:hover:border-emerald-500/50',
+        },
+        {
+            title: 'Side Effects Query',
+            subtitle: 'Check medication interactions',
+            prompt: 'Side Effects Query',
+            icon: <Activity className="w-6 h-6 text-rose-500 dark:text-rose-400" />,
+            iconBg: 'bg-rose-50 dark:bg-rose-950/50',
+            borderColor: 'hover:border-rose-400/50 dark:hover:border-rose-500/50',
+        },
     ]
 
     const MarkdownComponents = {
         h3: ({ node, ...props }: any) => (
-            <div className="flex items-center gap-2 mt-4 mb-2 font-bold text-lg text-indigo-600 border-b border-indigo-100 pb-1">
+            <div className="flex items-center gap-2 mt-4 mb-2 font-bold text-lg text-indigo-600 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-900/50 pb-1">
                 <Pill className="w-5 h-5" /> <h3 {...props} />
             </div>
         ),
         ul: ({ node, ...props }: any) => <ul className="list-disc pl-5 space-y-1 mb-4" {...props} />,
-        strong: ({ node, ...props }: any) => <span className="font-semibold text-indigo-700 bg-indigo-50 px-1 rounded" {...props} />,
+        strong: ({ node, ...props }: any) => <span className="font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded" {...props} />,
         a: ({ node, href, children, ...props }: any) => {
             const isPayLink = href?.includes('payment') || href?.includes('checkout') || href?.includes('pay') || (children && String(children).toLowerCase().includes('pay'));
             if (isPayLink) {
@@ -280,19 +311,22 @@ export function PharmacyChat() {
     }
 
     return (
-        <div className="min-h-screen flex flex-col items-center p-4 md:p-6 bg-slate-50/50">
+        <div className="min-h-[calc(100vh-4rem)] flex flex-col p-4 md:p-8 bg-slate-50/60 dark:bg-slate-950 max-w-7xl mx-auto w-full">
+            {/* Header section matching exact design */}
             <motion.div
-                initial={{ opacity: 0, y: -20 }}
+                initial={{ opacity: 0, y: -15 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="w-full mb-6 flex items-center justify-between"
             >
                 <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-500 flex items-center justify-center shadow-lg">
-                        <ShieldCheck className="w-7 h-7 text-white" />
+                    <div className="w-14 h-14 rounded-2xl bg-indigo-600/10 dark:bg-indigo-500/20 border border-indigo-200/50 dark:border-indigo-500/30 flex items-center justify-center shadow-sm">
+                        <Pill className="w-7 h-7 text-indigo-600 dark:text-indigo-400" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-blue-600">Expert Pharmacy Agent</h1>
-                        <p className="text-sm text-muted-foreground">Clinical Pharmacist AI Companion</p>
+                        <h1 className="text-3xl font-extrabold text-slate-900 dark:text-slate-50 tracking-tight">Expert Pharmacy Agent</h1>
+                        <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5 mt-0.5">
+                            <Sparkles className="w-3.5 h-3.5" /> Clinical Pharmacist AI Companion
+                        </p>
                     </div>
                 </div>
                 {isSpeaking && (
@@ -300,106 +334,152 @@ export function PharmacyChat() {
                         variant="ghost"
                         size="sm"
                         onClick={stopSpeaking}
-                        className="animate-pulse border-red-200 text-red-600 hover:bg-red-50 gap-2 rounded-full"
+                        className="animate-pulse border-red-200 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 gap-2 rounded-full px-4"
                     >
-                        <StopCircle className="w-4 h-4" /> Stop
+                        <StopCircle className="w-4 h-4" /> Stop Audio
                     </Button>
                 )}
             </motion.div>
 
-            <Card className="w-full h-[calc(100vh-10rem)] flex flex-col shadow-2xl shadow-indigo-100/50 dark:shadow-none rounded-[2rem] overflow-hidden border-indigo-100/50 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl relative">
+            {/* Main Chat Container */}
+            <Card className="w-full flex-1 flex flex-col shadow-xl shadow-slate-200/50 dark:shadow-none rounded-3xl overflow-hidden border border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl relative min-h-[620px]">
                 <AnimatePresence>
                     {isListening && (
-                        <motion.div className="absolute inset-0 z-50 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center"
+                        >
                             <VoiceWaveform />
-                            <h3 className="text-2xl font-bold mt-6">Listening...</h3>
-                            <p className="text-muted-foreground mt-2">Describe your symptoms or ask about medicines</p>
-                            {voiceError && <p className="text-red-500 mb-4">{voiceError}</p>}
+                            <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-6">Listening to your query...</h3>
+                            <p className="text-slate-500 dark:text-slate-400 text-sm mt-2 max-w-md">Speak clearly about your symptom, medicine availability, or side effects.</p>
+                            {voiceError && <p className="text-red-500 text-sm mt-2 font-medium">{voiceError}</p>}
                             <div className="mt-8 flex gap-3">
-                                <Button variant="outline" onClick={stopListening} className="rounded-full px-8">Stop</Button>
-                                <Button onClick={() => handleSendMessage()} className="rounded-full px-8 bg-indigo-600">Analyze</Button>
+                                <Button variant="outline" onClick={stopListening} className="rounded-full px-8 border-slate-300">Cancel</Button>
+                                <Button onClick={() => handleSendMessage()} className="rounded-full px-8 bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200 dark:shadow-none">Send Voice</Button>
                             </div>
                         </motion.div>
                     )}
                 </AnimatePresence>
 
-                <CardContent className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
-                    {messages.length === 0 && (
-                        <div className="h-full flex flex-col items-center justify-center text-center">
-                            <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-6">
-                                <Pill className="w-10 h-10 text-indigo-500" />
+                <CardContent className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 flex flex-col justify-between">
+                    {messages.length === 0 ? (
+                        <div className="my-auto flex flex-col items-center justify-center text-center py-6">
+                            {/* Blue circular pill icon wrapper matching requested UI */}
+                            <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-100 dark:border-indigo-900/60 rounded-3xl flex items-center justify-center mb-6 shadow-sm">
+                                <Pill className="w-10 h-10 text-indigo-600 dark:text-indigo-400" />
                             </div>
-                            <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-6">How can I assist you with your medications?</h2>
-                            <div className="grid grid-cols-2 gap-3 w-full max-w-lg">
+
+                            <h2 className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight mb-2">How can I assist you today?</h2>
+                            <p className="text-slate-500 dark:text-slate-400 text-base font-medium mb-10 max-w-lg">
+                                Get instant clinical advice, check medicine stocks, or understand side effects.
+                            </p>
+
+                            {/* 4 Quick Action Cards in 2x2 Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl">
                                 {quickActions.map((action, i) => (
-                                    <button key={i} onClick={() => handleSendMessage(action.text)} className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-indigo-200 dark:hover:border-indigo-500/50 hover:bg-indigo-50/30 dark:hover:bg-indigo-500/10 transition-all text-left group">
-                                        <span className="text-xl mb-1 block">{action.icon}</span>
-                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-indigo-700 dark:group-hover:text-indigo-400">{action.text}</span>
+                                    <button
+                                        key={i}
+                                        onClick={() => handleSendMessage(action.prompt)}
+                                        className={`p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 ${action.borderColor} bg-white dark:bg-slate-900 hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-all text-left shadow-sm hover:shadow-md flex items-start gap-4 group cursor-pointer`}
+                                    >
+                                        <div className={`p-3 rounded-2xl ${action.iconBg} flex-shrink-0 transition-transform group-hover:scale-105`}>
+                                            {action.icon}
+                                        </div>
+                                        <div className="flex-1">
+                                            <h4 className="text-base font-bold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                                {action.title}
+                                            </h4>
+                                            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">
+                                                {action.subtitle}
+                                            </p>
+                                        </div>
                                     </button>
                                 ))}
                             </div>
                         </div>
-                    )}
-
-                    {messages.map((m) => (
-                        <motion.div
-                            key={m.id}
-                            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            transition={{ duration: 0.3 }}
-                            className={`flex gap-4 ${m.isUser ? 'justify-end' : 'justify-start'}`}
-                        >
-                            {!m.isUser && (
-                                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center flex-shrink-0 mt-1 shadow-md shadow-indigo-200">
-                                    <Bot className="w-5 h-5 text-white" />
+                    ) : (
+                        <div className="space-y-6">
+                            {messages.map((m) => (
+                                <motion.div
+                                    key={m.id}
+                                    initial={{ opacity: 0, y: 15 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.25 }}
+                                    className={`flex gap-4 ${m.isUser ? 'justify-end' : 'justify-start'}`}
+                                >
+                                    {!m.isUser && (
+                                        <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center flex-shrink-0 mt-1 shadow-md shadow-indigo-200 dark:shadow-none">
+                                            <Bot className="w-5 h-5" />
+                                        </div>
+                                    )}
+                                    <div
+                                        className={`max-w-[85%] md:max-w-[75%] rounded-2xl px-6 py-4 shadow-sm relative ${m.isUser
+                                            ? 'bg-indigo-600 text-white rounded-br-none'
+                                            : 'bg-slate-100/90 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700/60 text-slate-900 dark:text-slate-100 rounded-bl-none'
+                                            }`}
+                                    >
+                                        <div className={`prose prose-sm max-w-none ${m.isUser ? 'prose-invert text-white' : 'dark:prose-invert'}`}>
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>{m.text}</ReactMarkdown>
+                                        </div>
+                                        <span className={`text-[10px] font-medium mt-2 block ${m.isUser ? 'text-indigo-200' : 'text-slate-400'}`}>
+                                            {m.timestamp}
+                                        </span>
+                                    </div>
+                                </motion.div>
+                            ))}
+                            {isLoading && (
+                                <div className="flex items-center gap-3 text-sm text-indigo-600 dark:text-indigo-400 font-medium ml-12">
+                                    <Bot className="w-5 h-5 animate-spin" /> Consulting Expert Pharmacist...
                                 </div>
                             )}
-                            <div
-                                className={`max-w-[85%] md:max-w-[75%] rounded-2xl px-6 py-4 shadow-sm relative group ${m.isUser
-                                    ? 'bg-gradient-to-br from-indigo-600 to-blue-700 text-white rounded-br-sm'
-                                    : 'bg-white border border-slate-100/80 rounded-bl-sm'
-                                    }`}
-                            >
-                                <div className={`prose prose-sm max-w-none ${m.isUser ? 'prose-invert' : ''}`}>
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>{m.text}</ReactMarkdown>
-                                </div>
-                                <span className={`text-[10px] mt-2 block ${m.isUser ? 'text-indigo-100' : 'text-slate-400'}`}>
-                                    {m.timestamp}
-                                </span>
-                            </div>
-                        </motion.div>
-                    ))}
-                    {isLoading && <div className="flex gap-2 items-center text-xs text-muted-foreground ml-10"><Bot className="w-4 h-4 animate-bounce" /> Analyzing records...</div>}
-                    <div ref={messagesEndRef} />
-                </CardContent>
+                            <div ref={messagesEndRef} />
+                        </div>
+                    )}
 
-                <div className="p-6 border-t border-slate-100 bg-white/50 backdrop-blur-md">
-                    <div className="flex gap-3">
-                        <Button
-                            variant="ghost"
-                            onClick={startListening}
-                            className={`rounded-2xl w-14 h-14 p-0 shadow-sm transition-all ${isListening
-                                ? 'bg-red-500 text-white shadow-red-200'
-                                : 'bg-white border border-slate-100 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-100'
-                                }`}
-                        >
-                            {isListening ? <StopCircle className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
-                        </Button>
-                        <Input
-                            value={inputValue}
-                            onChange={e => setInputValue(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
-                            placeholder="Ask about medicines or health advice..."
-                            className="rounded-2xl bg-white border-slate-100 h-14 px-6 focus:ring-2 focus:ring-indigo-500/20 transition-all text-base"
-                        />
-                        <Button
-                            onClick={() => handleSendMessage()}
-                            className="rounded-2xl w-14 h-14 p-0 bg-gradient-to-br from-indigo-600 to-blue-600 shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-all"
-                        >
-                            <Send className="w-6 h-6" />
-                        </Button>
+                    {/* Bottom Floating Input Bar matching UI screenshot */}
+                    <div className="mt-6 pt-4">
+                        <div className="bg-slate-100/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 rounded-full p-2 pl-3 flex items-center gap-3 shadow-inner">
+                            <button
+                                onClick={isListening ? stopListening : startListening}
+                                type="button"
+                                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${isListening
+                                    ? 'bg-red-500 text-white animate-pulse'
+                                    : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600 shadow-sm'
+                                    }`}
+                                title="Voice input"
+                            >
+                                {isListening ? <StopCircle className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                            </button>
+
+                            <input
+                                type="text"
+                                value={inputValue}
+                                onChange={e => setInputValue(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
+                                placeholder="Message Expert Pharmacy Agent..."
+                                className="flex-1 bg-transparent border-none outline-none focus:outline-none focus:ring-0 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 text-base font-normal px-2"
+                            />
+
+                            <button
+                                onClick={() => handleSendMessage()}
+                                disabled={!inputValue.trim() && !isLoading}
+                                type="button"
+                                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${inputValue.trim()
+                                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-300 dark:shadow-none hover:bg-indigo-700 cursor-pointer'
+                                    : 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-not-allowed'
+                                    }`}
+                                title="Send message"
+                            >
+                                <Send className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <p className="text-center text-xs font-medium text-slate-400 dark:text-slate-500 mt-3">
+                            AI can make mistakes. Consider verifying important clinical information.
+                        </p>
                     </div>
-                </div>
+                </CardContent>
             </Card>
         </div>
     )
