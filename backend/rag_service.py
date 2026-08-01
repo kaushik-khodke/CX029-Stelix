@@ -153,12 +153,13 @@ class RAGService:
             if not full_text or not full_text.strip():
                 full_text = f"Medical Record ID {record_id} uploaded on system."
             
-            # Save full text to records table in extracted_text column
+            # Save full text to records table in extracted_text column & mark as analyzed
             try:
                 self.supabase.table("records").update({
-                    "extracted_text": full_text
+                    "extracted_text": full_text,
+                    "encrypted_metadata": {"analyzed": True}
                 }).eq("id", record_id).execute()
-                print("✅ Saved full text to records.extracted_text column")
+                print("✅ Saved full text to records.extracted_text column & marked as analyzed")
             except Exception as e:
                 print(f"⚠️ Could not save full text: {e}")
             
