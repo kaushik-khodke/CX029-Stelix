@@ -9,11 +9,6 @@ const BACKEND_URL = process.env.BACKEND_URL || 'https://cx029-stelix.onrender.co
 
 const gateway = new WhatsAppGatewayManager({ backendUrl: BACKEND_URL });
 
-// Clean flag CLI handling
-if (process.argv.includes('--clean')) {
-    gateway.cleanSessionStorage(true);
-}
-
 // API Endpoints
 app.get('/health', (req, res) => {
     res.json({
@@ -64,5 +59,10 @@ process.on('unhandledRejection', (reason) => {
     console.warn(`[Unhandled Rejection] ${reason}`);
 });
 
-// Boot Gateway Client
-gateway.initialize();
+// Boot Gateway Client sequentially
+(async () => {
+    if (process.argv.includes('--clean')) {
+        await gateway.cleanSessionStorage(true);
+    }
+    await gateway.initialize();
+})();
