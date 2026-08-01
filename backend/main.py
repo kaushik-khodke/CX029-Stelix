@@ -1476,7 +1476,7 @@ async def pharmacy_chat(request: PharmacyChatRequest):
     try:
         from agents.orchestrator_agent import OrchestratorAgent as _OrchestratorAgent
         if not hasattr(pharmacy_chat, "_orchestrator"):
-            pharmacy_chat._orchestrator = _orchestrator
+            pharmacy_chat._orchestrator = _OrchestratorAgent()
 
         print(f"💊 Expert Pharmacy Query (multi-agent): {request.message}")
 
