@@ -25,6 +25,10 @@ export function useAuth() {
   // (avoids infinite re-render loop: profile change → fetchProfile recreated → useEffect re-runs)
   const profileRef = useRef<Profile | null>(null);
 
+  // Track whether user needs onboarding (OAuth user with no profile)
+  const needsOnboardingRef = useRef(false);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+
   const fetchProfile = useCallback(async (user: User) => {
     try {
       const userId = user.id;
@@ -43,8 +47,24 @@ export function useAuth() {
 
       if (error) throw error;
 
-      // Auto-create profile if missing!
+      // Check if this is an OAuth user (has provider but no profile yet)
+      const isOAuthUser = user.app_metadata?.provider && user.app_metadata.provider !== 'email';
+
       if (!data) {
+        if (isOAuthUser) {
+          // OAuth user with no profile → needs onboarding, do NOT auto-create
+          if (mountedRef.current) {
+            needsOnboardingRef.current = true;
+            setNeedsOnboarding(true);
+            profileRef.current = null;
+            setProfile(null);
+            lastFetchedUserIdRef.current = userId;
+            setLoading(false);
+          }
+          return;
+        }
+
+        // Email/password user — auto-create profile as before
         const mData = user.user_metadata || {};
         const role = mData.role || 'patient';
         const { data: newProfile, error: insertError } = await supabase
@@ -79,6 +99,10 @@ export function useAuth() {
         } else {
           console.error("Failed to auto-create profile:", insertError);
         }
+      } else {
+        // Profile exists — clear onboarding flag
+        needsOnboardingRef.current = false;
+        if (mountedRef.current) setNeedsOnboarding(false);
       }
 
       if (!mountedRef.current) return;
@@ -189,5 +213,6 @@ export function useAuth() {
     signOut,
     isAuthenticated: !!user,
     role: resolvedRole,
+    needsOnboarding,
   };
 }
