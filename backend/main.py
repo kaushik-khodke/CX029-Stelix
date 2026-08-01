@@ -1463,7 +1463,7 @@ async def pharmacy_chat(request: PharmacyChatRequest):
     try:
         from agents.orchestrator_agent import OrchestratorAgent as _OrchestratorAgent
         if not hasattr(pharmacy_chat, "_orchestrator"):
-            pharmacy_chat._orchestrator = _OrchestratorAgent()
+            pharmacy_chat._orchestrator = _orchestrator
 
         print(f"💊 Expert Pharmacy Query (multi-agent): {request.message}")
 
@@ -1930,7 +1930,9 @@ async def clear_chat(request: ChatClearRequest):
         user_id = request.user_id
         if user_id in chat_sessions:
             del chat_sessions[user_id]
-            print(f"🧹 Cleared chat history for user: {user_id}")
+        if hasattr(_orchestrator, "_sessions") and user_id in _orchestrator._sessions:
+            del _orchestrator._sessions[user_id]
+        print(f"🧹 Cleared chat history for user: {user_id}")
         return {"success": True, "message": "Chat history cleared"}
     except Exception as e:
         print(f"❌ Error clearing chat history: {e}")

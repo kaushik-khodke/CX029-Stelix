@@ -115,7 +115,7 @@ RULES:
 from ai_config import get_ai_client, MODEL_TOOL_AGENT, MODEL_TOOL_AGENT_FALLBACK
 
 class PharmacistOrchestratorAgent:
-    MAX_HISTORY_TURNS = 10
+    MAX_HISTORY_TURNS = 6
 
     def __init__(self):
         url = os.getenv("VITE_SUPABASE_URL")
@@ -186,7 +186,7 @@ class PharmacistOrchestratorAgent:
 
     async def run(self, message: str, language: str = "en") -> Dict[str, Any]:
         session_id = "pharmacist_global_session"
-        history = self._get_history(session_id)[-6:]
+        history = self._get_history(session_id)[-12:]
         
         history_contents = []
         for h in history:
@@ -253,10 +253,9 @@ class PharmacistOrchestratorAgent:
                         )
                     )
                 
-                tool_content = types.Content(role="tool", parts=tool_responses)
                 for attempt in range(3):
                     try:
-                        response = await asyncio.to_thread(chat.send_message, tool_content)
+                        response = await asyncio.to_thread(chat.send_message, tool_responses)
                         break
                     except Exception as e:
                         if ("429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)) and attempt < 2:

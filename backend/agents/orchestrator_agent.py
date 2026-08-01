@@ -29,10 +29,11 @@ TOOLS = [
             types.FunctionDeclaration(
                 name="call_pharmacy_agent",
                 description=(
-                    "Search medicines, verify prescriptions, place orders, or check current medications. "
+                    "Search medicines, check prescription requirement in database, place orders, or check current medications. "
+                    "ALWAYS call this tool first when a user asks to buy, order, refill, or check any medicine. "
+                    "Use action='order' to purchase a medicine (it will automatically check database if a prescription is required). "
                     "Use action='search' to look up a medicine. "
                     "Use action='get_my_medicines' to see the patient's currently prescribed medications and dosages. "
-                    "Use action='order' to purchase/refill a single medicine. "
                     "Use action='order_from_prescription' to bulk order from an uploaded record."
                 ),
                 parameters=types.Schema(
@@ -84,7 +85,7 @@ TOOLS = [
             ),
             types.FunctionDeclaration(
                 name="call_prescription_agent",
-                description="Verify if a patient has a valid prescription for a medicine.",
+                description="Verify if a patient has a valid prescription for a medicine in their uploaded records.",
                 parameters=types.Schema(
                     type="OBJECT",
                     properties={
@@ -127,14 +128,20 @@ ROLE AWARENESS:
 2. If User role is **doctor**: Assist with hospital duties, ward assignments, and patient management.
 
 TOOLS AVAILABLE:
-• call_pharmacy_agent  — search/order medicines OR check active prescriptions
-• call_prescription_agent — verify prescriptions
-• call_refill_agent    — detect which medicines are running low
+• call_pharmacy_agent     — search/order medicines, check inventory, create order drafts
+• call_prescription_agent — verify patient's uploaded prescriptions in medical records
+• call_refill_agent       — detect which medicines are running low
 • call_notification_agent — log confirmations
-• call_health_agent    — search records, analyze risk, or check daily routines
-• call_doctor_agent    — manage ward assignments or check duties (ONLY for doctors)
+• call_health_agent       — search records, analyze risk, or check daily routines
+• call_doctor_agent       — manage ward assignments or check duties (ONLY for doctors)
 
-RULES:
+CRITICAL WORKFLOW RULES FOR MEDICINES & ORDERS:
+1. **Always Check Database First**: When a patient asks to order, buy, or query ANY medicine (e.g., "order paracetamol"), ALWAYS call `call_pharmacy_agent` (action='order' or action='search') FIRST.
+2. **Prescription Verification**: NEVER ask the patient for a prescription or assume a prescription is required before calling `call_pharmacy_agent`. `call_pharmacy_agent` automatically checks the database (`medicines.prescription_required`) to see if a prescription is actually needed.
+3. **Over-The-Counter (OTC) Medicines**: If a medicine does NOT require a prescription in the database (such as Paracetamol/Acetaminophen, Ibuprofen, Vitamin C, etc.), `call_pharmacy_agent` will immediately generate the order draft and payment checkout link.
+4. **Prescription-Required Medicines**: Only if the database indicates `prescription_required = true` for that medicine will the system check the user's uploaded records or ask for a prescription.
+
+GENERAL RULES:
 1. **Context Alignment**: If a doctor asks about their duties, use `call_doctor_agent`. If a patient asks about their health, use `call_health_agent`.
 2. **Chain of Thought**: Express your reasoning before calling tools.
 3. **Persona**: Be professional, clinical, and helpful. Use emojis.
@@ -145,7 +152,7 @@ RULES:
 from ai_config import get_ai_client, MODEL_TOOL_AGENT, MODEL_TOOL_AGENT_FALLBACK
 
 class OrchestratorAgent:
-    MAX_HISTORY_TURNS = 10
+    MAX_HISTORY_TURNS = 6
 
     def __init__(self):
         self.pharmacy     = PharmacyAgent()
@@ -200,8 +207,8 @@ class OrchestratorAgent:
         if not safety_check.success:
             return {"success": False, "response": safety_check.message, "agents_used": ["safety_agent"], "steps": []}
 
-        # Format message content including recent history (last 6 items for high speed)
-        history = self._get_history(user_id)[-6:]
+        # Format message content including recent history (last 6 chats = 12 messages)
+        history = self._get_history(user_id)[-12:]
         history_contents = []
         for h in history:
             history_contents.append(types.Content(role=h["role"], parts=[types.Part.from_text(text=h["content"])]))
@@ -212,27 +219,43 @@ class OrchestratorAgent:
         steps = []
         
         try:
-            chat = self.client.chats.create(
-                model=MODEL_TOOL_AGENT,
-                config=types.GenerateContentConfig(
-                    tools=TOOLS,
-                    system_instruction=SYSTEM_PROMPT
-                ),
-                history=history_contents
-            )
-
-            # Send initial message with retry for 429 rate limits
+            models_to_try = [MODEL_TOOL_AGENT, MODEL_TOOL_AGENT_FALLBACK, "gemini-2.0-flash-lite"]
+            chat = None
             response = None
-            for attempt in range(3):
+            last_err = None
+
+            for model_name in models_to_try:
                 try:
-                    response = await asyncio.to_thread(chat.send_message, user_prompt)
-                    break
-                except Exception as e:
-                    if ("429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)) and attempt < 2:
-                        print(f"⏳ Rate limit hit, retrying in 2 seconds (attempt {attempt+1})...")
-                        await asyncio.sleep(2)
+                    chat = self.client.chats.create(
+                        model=model_name,
+                        config=types.GenerateContentConfig(
+                            tools=TOOLS,
+                            system_instruction=SYSTEM_PROMPT
+                        ),
+                        history=history_contents
+                    )
+                    for attempt in range(3):
+                        try:
+                            response = await asyncio.to_thread(chat.send_message, user_prompt)
+                            break
+                        except Exception as e:
+                            if ("429" in str(e) or "RESOURCE_EXHAUSTED" in str(e) or "quota" in str(e).lower()) and attempt < 2:
+                                print(f"⏳ [{model_name}] Rate limit hit, retrying in 1s (attempt {attempt+1})...")
+                                await asyncio.sleep(1)
+                            else:
+                                raise e
+                    if response:
+                        break
+                except Exception as me:
+                    last_err = me
+                    if "429" in str(me) or "RESOURCE_EXHAUSTED" in str(me) or "quota" in str(me).lower() or "404" in str(me):
+                        print(f"⚠️ Model {model_name} quota/error: {str(me)[:100]}. Trying fallback model...")
+                        continue
                     else:
-                        raise e
+                        raise me
+
+            if not response and last_err:
+                raise last_err
 
             for _ in range(6): # max tool iterations
                 if not response or not response.candidates or not response.candidates[0].content.parts:
@@ -265,16 +288,15 @@ class OrchestratorAgent:
                         )
                     )
                 
-                # Send tool responses back to model as role="tool" with retry
-                tool_content = types.Content(role="tool", parts=tool_responses)
+                # Send tool responses back to model as list of Part objects with retry
                 for attempt in range(3):
                     try:
-                        response = await asyncio.to_thread(chat.send_message, tool_content)
+                        response = await asyncio.to_thread(chat.send_message, tool_responses)
                         break
                     except Exception as e:
-                        if ("429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)) and attempt < 2:
-                            print(f"⏳ Tool turn rate limit hit, retrying in 2 seconds (attempt {attempt+1})...")
-                            await asyncio.sleep(2)
+                        if ("429" in str(e) or "RESOURCE_EXHAUSTED" in str(e) or "quota" in str(e).lower()) and attempt < 2:
+                            print(f"⏳ Tool turn rate limit hit, retrying in 1s (attempt {attempt+1})...")
+                            await asyncio.sleep(1)
                         else:
                             raise e
 
