@@ -178,10 +178,10 @@ export function Analysis() {
                 throw new Error(analysisJson.error || "Analysis failed");
             }
 
-            if (trendsJson.success) {
+            if (trendsJson.success && Array.isArray(trendsJson.timeline)) {
                 const formattedTrends = trendsJson.timeline.map((t: any) => ({
                     ...t,
-                    displayDate: new Date(t.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                    displayDate: t.date ? new Date(t.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'Recent'
                 }));
                 setTrends(formattedTrends);
             }

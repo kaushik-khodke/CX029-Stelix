@@ -97,24 +97,40 @@ def parse_medical_text(text_data):
     print(f"✅ Extracted Vitals: {data}")
     return data
 
-def analyze_risk(text_records):
+def analyze_risk(text_records, structured_vitals: dict = None):
     """
     Main function called by API. 
     1. Parses text -> numbers.
-    2. Predicts using Random Forest (if enough data).
+    2. Overrides/merges structured vitals provided from DB (patients, triage, routines).
+    3. Predicts using Random Forest or Rule-Based fallback.
     """
     # Combine all records into one string for analysis
-    full_text = " ".join(text_records) if text_records else ""
+    full_text = " ".join(text_records) if isinstance(text_records, list) else (text_records or "")
     
-    # 1. Parse
+    # 1. Parse from text
     features = parse_medical_text(full_text)
     
-    # 2. Predict Risk
+    # 2. Merge structured vitals if passed
+    if structured_vitals and isinstance(structured_vitals, dict):
+        for k, v in structured_vitals.items():
+            if v is not None and v != "":
+                if k == 'bp' and isinstance(v, str) and '/' in str(v):
+                    try:
+                        sys_val, dia_val = str(v).split('/')
+                        features['systolic'] = int(sys_val.strip())
+                        features['diastolic'] = int(dia_val.strip())
+                    except Exception:
+                        pass
+                elif k in features:
+                    features[k] = v
+
+    # 3. Predict Risk
     risk_status = "Insufficient Data"
     
     # Check what we have
     has_bp = features['systolic'] is not None and features['diastolic'] is not None
     has_sugar = features['sugar'] is not None
+    has_hr = features['heart_rate'] is not None
     has_age = features['age'] is not None
     
     # STRATEGY 1: ML Model (Requires All Data)
@@ -133,30 +149,39 @@ def analyze_risk(text_records):
         risk_status = status_map[prediction_index]
 
     # STRATEGY 2: Rule-Based Fallback (If partial data)
-    elif has_bp or has_sugar:
-        # Default to Healthy, then escalate based on findings
+    elif has_bp or has_sugar or has_hr:
         current_risk = 0 # 0=Healthy, 1=Warning, 2=Critical
         
         # Check BP
         if has_bp:
             sys = features['systolic']
             dia = features['diastolic']
-            if sys >= 180 or dia >= 120:
+            if sys >= 180 or dia >= 120 or sys < 80 or dia < 50:
                 current_risk = max(current_risk, 2)
-            elif sys >= 140 or dia >= 90:
+            elif sys >= 140 or dia >= 90 or sys < 90 or dia < 60:
                 current_risk = max(current_risk, 1)
         
         # Check Sugar
         if has_sugar:
             sug = features['sugar']
-            if sug >= 200:
+            if sug >= 200 or sug < 60:
                 current_risk = max(current_risk, 2)
-            elif sug >= 140:
+            elif sug >= 140 or sug < 70:
+                current_risk = max(current_risk, 1)
+                
+        # Check HR
+        if has_hr:
+            hr = features['heart_rate']
+            if hr > 130 or hr < 45:
+                current_risk = max(current_risk, 2)
+            elif hr > 100 or hr < 55:
                 current_risk = max(current_risk, 1)
                 
         status_map = {0: "Healthy", 1: "Warning", 2: "Critical"}
         risk_status = status_map[current_risk]
         
+    elif has_age or features.get('weight') or features.get('blood_group') or (isinstance(text_records, list) and len(text_records) > 0 and len(full_text.strip()) > 0):
+        risk_status = "Healthy"
     else:
         risk_status = "Insufficient Data"
     
@@ -167,7 +192,6 @@ def analyze_risk(text_records):
             "sugar": features['sugar'],
             "heart_rate": features['heart_rate'],
             "height": features['height'],
-            "weight": features['weight'],
             "weight": features['weight'],
             "age": features['age'],
             "blood_group": features['blood_group']
