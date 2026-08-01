@@ -2784,12 +2784,8 @@ async def verify_doctor_phone(phone: str):
     if not res.data:
         return {"authorized": False}
     
-    profile_ids = [p["id"] for p in res.data]
-    
-    # Verify this profile belongs to a doctor
-    doc_res = sb.table("doctors").select("id").in_("user_id", profile_ids).execute()
-    
-    return {"authorized": len(doc_res.data) > 0}
+    # Authorized if phone belongs to any registered user (doctor or patient profile)
+    return {"authorized": True}
 
 
 
