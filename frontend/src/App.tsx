@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 
 import { Navbar } from "@/components/layout/Navbar";
 import { Landing } from "@/pages/Landing";
@@ -125,195 +125,214 @@ function DashboardRouter() {
 }
 
 import { AlertProvider } from "@/providers/AlertProvider";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { GlobalAlertContainer } from "@/components/layout/GlobalAlertContainer";
 import { MedicineReminder } from "@/components/features/MedicineReminder";
+
+function MainLayout() {
+  const location = useLocation();
+  const isLanding = location.pathname === '/';
+
+  return (
+    <SidebarProvider>
+      {!isLanding && <Navbar />}
+      <div className="flex flex-col flex-1 min-w-0 w-full min-h-screen text-foreground">
+        <GlobalAlertContainer />
+        <MedicineReminder />
+        <main className="flex-1 w-full relative">
+        <Routes>
+          {/* Public routes */}
+          <Route
+            path="/"
+            element={
+              <PublicRoute>
+                <Landing />
+              </PublicRoute>
+            }
+          />
+          <Route
+            path="/login"
+            element={
+              <PublicRoute>
+                <Login />
+              </PublicRoute>
+            }
+          />
+          <Route
+            path="/signup"
+            element={
+              <PublicRoute>
+                <Signup />
+              </PublicRoute>
+            }
+          />
+          <Route
+            path="/reset-password"
+            element={
+              <PublicRoute>
+                <ResetPassword />
+              </PublicRoute>
+            }
+          />
+          <Route
+            path="/update-password"
+            element={
+              <UpdatePassword />
+            }
+          />
+
+          {/* Protected routes */}
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <DashboardRouter />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Patient */}
+          <Route
+            path="/patient/records"
+            element={
+              <RoleRoute allowedRole="patient">
+                <Records />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/patient/routines"
+            element={
+              <RoleRoute allowedRole="patient">
+                <HealthTracker />
+              </RoleRoute>
+            }
+          />
+          {/* Payment Callbacks */}
+          <Route
+            path="/payment/success"
+            element={
+              <RoleRoute allowedRole="patient">
+                <PaymentSuccess />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/payment/cancel"
+            element={
+              <RoleRoute allowedRole="patient">
+                <PaymentCancel />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/patient/consent"
+            element={
+              <RoleRoute allowedRole="patient">
+                <PatientConsent />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/patient/chat"
+            element={
+              <RoleRoute allowedRole="patient">
+                <Chat />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/patient/analysis"
+            element={
+              <RoleRoute allowedRole="patient">
+                <Analysis />
+              </RoleRoute>
+            }
+          />
+
+          {/* Doctor */}
+          <Route
+            path="/patient/pharmacy-chat"
+            element={
+              <RoleRoute allowedRole="patient">
+                <PharmacyChat />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/patient/my-medicines"
+            element={
+              <RoleRoute allowedRole="patient">
+                <MyMedicines />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/doctor/scan"
+            element={
+              <RoleRoute allowedRole="doctor">
+                <Scan />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/doctor/patient/:patientId"
+            element={
+              <RoleRoute allowedRole="doctor">
+                <PatientView />
+              </RoleRoute>
+            }
+          />
+
+          {/* Pharmacist */}
+          <Route
+            path="/pharmacist/dashboard"
+            element={
+              <RoleRoute allowedRole="pharmacist">
+                <PharmacistDashboard />
+              </RoleRoute>
+            }
+          />
+
+          <Route
+            path="/hospital/dashboard"
+            element={
+              <RoleRoute allowedRole="hospital">
+                <HospitalDashboard />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/hospital/triage"
+            element={
+              <RoleRoute allowedRole="hospital">
+                <HospitalDashboard defaultTab="queue" />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/hospital/load-balancer"
+            element={
+              <RoleRoute allowedRole="hospital">
+                <HospitalDashboard defaultTab="resources" />
+              </RoleRoute>
+            }
+          />
+
+          {/* 404 */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </main>
+      </div>
+    </SidebarProvider>
+  );
+}
 
 function App() {
   return (
     <Router>
       <AlertProvider>
-        <div className="min-h-screen text-foreground">
-          <Navbar />
-          <GlobalAlertContainer />
-          <MedicineReminder />
-          <main className="pt-16 min-h-screen relative">
-            <Routes>
-              {/* Public routes */}
-              <Route path="/" element={<Landing />} />
-              <Route
-                path="/login"
-                element={
-                  <PublicRoute>
-                    <Login />
-                  </PublicRoute>
-                }
-              />
-              <Route
-                path="/signup"
-                element={
-                  <PublicRoute>
-                    <Signup />
-                  </PublicRoute>
-                }
-              />
-              <Route
-                path="/reset-password"
-                element={
-                  <PublicRoute>
-                    <ResetPassword />
-                  </PublicRoute>
-                }
-              />
-              <Route
-                path="/update-password"
-                element={
-                  <UpdatePassword />
-                }
-              />
-
-              {/* Protected routes */}
-              <Route
-                path="/dashboard"
-                element={
-                  <ProtectedRoute>
-                    <DashboardRouter />
-                  </ProtectedRoute>
-                }
-              />
-
-            {/* Patient */}
-            <Route
-              path="/patient/records"
-              element={
-                <RoleRoute allowedRole="patient">
-                  <Records />
-                </RoleRoute>
-              }
-            />
-            <Route
-              path="/patient/routines"
-              element={
-                <RoleRoute allowedRole="patient">
-                  <HealthTracker />
-                </RoleRoute>
-              }
-            />
-            {/* Payment Callbacks */}
-            <Route
-              path="/payment/success"
-              element={
-                <RoleRoute allowedRole="patient">
-                  <PaymentSuccess />
-                </RoleRoute>
-              }
-            />
-            <Route
-              path="/payment/cancel"
-              element={
-                <RoleRoute allowedRole="patient">
-                  <PaymentCancel />
-                </RoleRoute>
-              }
-            />
-            <Route
-              path="/patient/consent"
-              element={
-                <RoleRoute allowedRole="patient">
-                  <PatientConsent />
-                </RoleRoute>
-              }
-            />
-            <Route
-              path="/patient/chat"
-              element={
-                <RoleRoute allowedRole="patient">
-                  <Chat />
-                </RoleRoute>
-              }
-            />
-            <Route
-              path="/patient/analysis"
-              element={
-                <RoleRoute allowedRole="patient">
-                  <Analysis />
-                </RoleRoute>
-              }
-            />
-
-            {/* Doctor */}
-            <Route
-              path="/patient/pharmacy-chat"
-              element={
-                <RoleRoute allowedRole="patient">
-                  <PharmacyChat />
-                </RoleRoute>
-              }
-            />
-            <Route
-              path="/patient/my-medicines"
-              element={
-                <RoleRoute allowedRole="patient">
-                  <MyMedicines />
-                </RoleRoute>
-              }
-            />
-            <Route
-              path="/doctor/scan"
-              element={
-                <RoleRoute allowedRole="doctor">
-                  <Scan />
-                </RoleRoute>
-              }
-            />
-            <Route
-              path="/doctor/patient/:patientId"
-              element={
-                <RoleRoute allowedRole="doctor">
-                  <PatientView />
-                </RoleRoute>
-              }
-            />
-
-            {/* Pharmacist */}
-            <Route
-              path="/pharmacist/dashboard"
-              element={
-                <RoleRoute allowedRole="pharmacist">
-                  <PharmacistDashboard />
-                </RoleRoute>
-              }
-            />
-
-            <Route
-              path="/hospital/dashboard"
-              element={
-                <RoleRoute allowedRole="hospital">
-                  <HospitalDashboard />
-                </RoleRoute>
-              }
-            />
-            <Route
-              path="/hospital/triage"
-              element={
-                <RoleRoute allowedRole="hospital">
-                  <HospitalDashboard defaultTab="queue" />
-                </RoleRoute>
-              }
-            />
-            <Route
-              path="/hospital/load-balancer"
-              element={
-                <RoleRoute allowedRole="hospital">
-                  <HospitalDashboard defaultTab="resources" />
-                </RoleRoute>
-              }
-            />
-
-              {/* 404 */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </main>
-        </div>
+        <MainLayout />
       </AlertProvider>
     </Router>
   );

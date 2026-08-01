@@ -179,7 +179,7 @@ export default function Dashboard() {
       <div className="absolute bottom-0 left-0 w-[45%] h-[50%] rounded-full bg-teal-400/10 blur-3xl -z-10" />
       <div className="absolute inset-0 -z-10 mask-radial-faded bg-background/20" />
 
-      <div className="container mx-auto px-4 py-8 relative">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-8 relative">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -229,7 +229,7 @@ export default function Dashboard() {
           <motion.div
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-6 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+            className="mb-6 rounded-xl border border-red-500/50 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-600 dark:text-red-400 shadow-sm"
           >
             {error}
           </motion.div>
