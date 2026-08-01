@@ -421,16 +421,17 @@ export default function HospitalDashboard({ defaultTab = 'queue' }: { defaultTab
 
                                                     {/* Actions */}
                                                     <div className="flex flex-row lg:flex-col gap-2 shrink-0 w-full lg:w-36">
-                                                        {patient.patient_id && (
-                                                            <Button
-                                                                variant="outline"
-                                                                onClick={() => navigate(`/patient/analysis/${patient.patient_id}`)}
-                                                                className="w-full border-blue-500/40 text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 transition-all font-bold text-xs gap-2 h-10 rounded-xl"
-                                                            >
-                                                                <TrendingUp className="w-4 h-4" />
-                                                                Analysis
-                                                            </Button>
-                                                        )}
+                                                        <Button
+                                                            variant="outline"
+                                                            onClick={() => {
+                                                                const targetId = patient.patient_id || patient.id;
+                                                                navigate(`/patient/analysis/${targetId}`);
+                                                            }}
+                                                            className="w-full border-blue-500/40 text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 transition-all font-bold text-xs gap-2 h-10 rounded-xl"
+                                                        >
+                                                            <TrendingUp className="w-4 h-4" />
+                                                            Analysis
+                                                        </Button>
                                                         <Button
                                                             onClick={() => markAttended(patient.id)}
                                                             className="w-full bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-500/20 transition-all font-bold text-xs gap-2 h-10 rounded-xl"
