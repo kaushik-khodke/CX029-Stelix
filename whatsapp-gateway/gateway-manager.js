@@ -36,19 +36,33 @@ class WhatsAppGatewayManager {
     async cleanSessionStorage(force = false) {
         // First destroy client if active to release Chrome locks
         await this.safeDestroyClient();
-        await delay(1000);
+        await delay(500);
+
+        // Kill orphaned headless chrome processes on Windows that hold file locks
+        if (process.platform === 'win32') {
+            try {
+                execSync('taskkill /F /IM chrome.exe /T 2>nul', { stdio: 'ignore' });
+            } catch (e) {}
+            await delay(500);
+        }
 
         try {
             if (fs.existsSync(this.cachePath)) {
-                fs.rmSync(this.cachePath, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
-                this.log('SESSION_CLEAN', 'Purged .wwebjs_cache directory');
+                try {
+                    fs.rmSync(this.cachePath, { recursive: true, force: true, maxRetries: 3, retryDelay: 300 });
+                    this.log('SESSION_CLEAN', 'Purged .wwebjs_cache directory');
+                } catch (ce) {}
             }
             if (force && fs.existsSync(this.authPath)) {
-                fs.rmSync(this.authPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
-                this.log('SESSION_CLEAN', 'Purged .wwebjs_auth directory to resolve corrupted session state');
+                try {
+                    fs.rmSync(this.authPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 300 });
+                    this.log('SESSION_CLEAN', 'Purged .wwebjs_auth directory');
+                } catch (ae) {
+                    this.log('SESSION_CLEAN', `Lock file note: ${ae.message}. Continuing startup.`, 'warn');
+                }
             }
         } catch (err) {
-            this.log('SESSION_CLEAN', `Warning during session directory cleanup: ${err.message}`, 'warn');
+            this.log('SESSION_CLEAN', `Cleanup note: ${err.message}`, 'warn');
         }
     }
 
@@ -88,7 +102,11 @@ class WhatsAppGatewayManager {
                     '--disable-gpu',
                     '--disable-web-security',
                     '--disable-features=IsolateOrigins,site-per-process',
-                    '--allow-running-insecure-content'
+                    '--allow-running-insecure-content',
+                    '--disable-background-timer-throttling',
+                    '--disable-backgrounding-occluded-windows',
+                    '--disable-renderer-backgrounding',
+                    '--disable-ipc-flooding-protection'
                 ]
             }
         });
@@ -110,7 +128,8 @@ class WhatsAppGatewayManager {
             this.state = 'CONNECTED';
             this.isReady = true;
             this.retryCount = 0;
-            this.log('STAGE 5/6', '✅ WhatsApp Client is ready and fully connected!');
+            const connectedNum = client.info && client.info.wid ? client.info.wid.user : 'Unknown';
+            this.log('STAGE 5/6', `✅ WhatsApp Client connected as: +${connectedNum}`);
         });
 
         client.on('auth_failure', async (msg) => {
@@ -236,11 +255,34 @@ class WhatsAppGatewayManager {
         }
 
         const cleanDigits = phone.replace(/[^0-9]/g, '');
-        const chatId = phone.includes('@c.us') ? phone : `${cleanDigits}@c.us`;
+        let formatted = cleanDigits;
 
-        this.log('MESSAGE_OUT', `Sending outgoing WhatsApp message to ${phone} (chatId: ${chatId})`);
-        await this.client.sendMessage(chatId, message);
-        return { success: true, phone, chatId };
+        if (cleanDigits.length === 10) {
+            formatted = `91${cleanDigits}`;
+        }
+
+        let targetChatId = `${formatted}@c.us`;
+
+        // Resolve registered number ID via WhatsApp API
+        try {
+            const numberDetails = await this.client.getNumberId(formatted);
+            if (numberDetails && numberDetails._serialized) {
+                targetChatId = numberDetails._serialized;
+                this.log('MESSAGE_OUT', `Resolved registered WhatsApp JID: ${targetChatId}`);
+            } else {
+                this.log('MESSAGE_OUT', `⚠️ getNumberId returned null for ${formatted}. Using fallback ${targetChatId}`, 'warn');
+            }
+        } catch (err) {
+            this.log('MESSAGE_OUT', `Number lookup notice: ${err.message}`, 'warn');
+        }
+
+        this.log('MESSAGE_OUT', `Dispatching WhatsApp message to ${phone} (JID: ${targetChatId})...`);
+        const sentMsg = await this.client.sendMessage(targetChatId, message);
+        
+        const msgId = sentMsg && sentMsg.id ? sentMsg.id._serialized : 'SENT';
+        this.log('MESSAGE_OUT', `✅ Message dispatched to WhatsApp servers! ID: ${msgId}`);
+
+        return { success: true, phone, chatId: targetChatId, messageId: msgId };
     }
 
     async shutdown() {

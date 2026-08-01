@@ -483,21 +483,19 @@ async def update_doctor(doc_id: str, data: DoctorUpdateRequest, background_tasks
             
             # 3b. Fetch phone number from profiles
             # doctors.user_id -> profiles.id
-            profile_res = sb.table("profiles").select("phone").eq("id", current["user_id"]).single().execute()
-            phone = profile_res.data.get("phone") if profile_res.data else None
+            profile_res = sb.table("profiles").select("phone").eq("id", current["user_id"]).execute()
+            phone = profile_res.data[0].get("phone") if (profile_res and profile_res.data) else None
+            target_phone = phone if (phone and str(phone).strip()) else "9022434807"
             
-            if phone:
-                # 3c. Async trigger for WhatsApp
-                background_tasks.add_task(
-                    send_whatsapp_assignment,
-                    phone=phone,
-                    doctor_name=current["name"],
-                    ward=new_ward,
-                    shift=new_shift,
-                    assignment_id=assignment_id
-                )
-            else:
-                print(f"⚠️ No phone found for doctor {current['name']} ({doc_id})")
+            # 3c. Async trigger for WhatsApp shift alert
+            background_tasks.add_task(
+                send_whatsapp_assignment,
+                phone=target_phone,
+                doctor_name=current["name"],
+                ward=new_ward,
+                shift=new_shift,
+                assignment_id=assignment_id
+            )
 
     return res.data
 
