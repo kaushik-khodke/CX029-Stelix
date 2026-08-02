@@ -1,4 +1,0 @@
-src/pages/pharmacist/Dashboard.tsx(58,40): error TS2304: Cannot find name 'API_BASE_URL'.
-src/pages/pharmacist/Dashboard.tsx(78,40): error TS2304: Cannot find name 'API_BASE_URL'.
-src/pages/pharmacist/Dashboard.tsx(101,40): error TS2304: Cannot find name 'API_BASE_URL'.
-src/pages/pharmacist/PharmacistAI.tsx(429,60): error TS18048: 'm.steps' is possibly 'undefined'.

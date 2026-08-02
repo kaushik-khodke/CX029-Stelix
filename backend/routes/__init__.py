@@ -1,0 +1,3 @@
+"""
+Stelix FastAPI Routes Package
+"""
