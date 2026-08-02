@@ -5,7 +5,7 @@ for MyHealthChain.
 
 Hybrid Model Architecture:
 - MODEL_TEXT_FAST ("gemini-3.5-flash-lite"): Optimized for fast direct Q&A, OCR, Summaries, RAG, and Insights.
-- MODEL_TOOL_AGENT ("gemini-2.5-flash"): Optimized for multi-turn Agent Tool Calling, Function Calling, and Database Operations.
+- MODEL_TOOL_AGENT ("gemini-2.5-flash"): Optimized for multi-turn Agent Tool Calling, Function Calling, Database Operations, and Expert Pharmacist Agentic AI.
 - MODEL_EMBEDDING ("text-embedding-004"): Vector embedding generation.
 """
 
@@ -18,7 +18,7 @@ from google.genai import types
 
 # ── Model Registry Definitions ────────────────────────────────── ────────────
 MODEL_TEXT_FAST = "gemini-3.5-flash-lite"
-MODEL_TEXT_FAST_FALLBACK = "gemini-2.5-flash"
+MODEL_TEXT_FAST_FALLBACK = "gemini-3.1-flash-lite"
 
 MODEL_TOOL_AGENT = "gemini-2.5-flash"
 MODEL_TOOL_AGENT_FALLBACK = "gemini-2.0-flash"
